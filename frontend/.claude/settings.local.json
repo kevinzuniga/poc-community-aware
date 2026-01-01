@@ -1,0 +1,9 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(npm run dev:*)",
+      "Bash(python3:*)",
+      "Bash(npx serve:*)"
+    ]
+  }
+}

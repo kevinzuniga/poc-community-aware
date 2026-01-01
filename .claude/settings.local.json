@@ -1,0 +1,28 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(curl:*)",
+      "WebFetch(domain:api.circle.so)",
+      "WebSearch",
+      "Bash(node -e:*)",
+      "Bash(timeout 5 npm start)",
+      "WebFetch(domain:api-headless.circle.so)",
+      "Bash(\"https://app.circle.so/api/v1/headless/auth_token\" )",
+      "WebFetch(domain:help.circle.so)",
+      "Bash(lsof:*)",
+      "Bash(xargs kill:*)",
+      "Bash(pkill:*)",
+      "WebFetch(domain:community.circle.so)",
+      "Bash(python3:*)",
+      "Bash(npm install:*)",
+      "Bash(cat:*)",
+      "Bash(xargs -I {} curl -s -I \"https://fuxion-aware.circle.so/session/cookies?access_token={}&return_to=http://localhost:3000\")",
+      "Bash(http://localhost:3001/api/circle/announcements)",
+      "Bash(git init:*)",
+      "Bash(git add:*)",
+      "Bash(git commit:*)"
+    ],
+    "deny": [],
+    "ask": []
+  }
+}
