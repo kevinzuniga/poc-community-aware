@@ -412,16 +412,83 @@ body {
   opacity: 0.7;
 }
 
-/* Comments Section */
-.comments-section {
+/* Curso Actions (go to community button) */
+.curso-actions {
   margin-top: 2rem;
-  padding-top: 1.5rem;
-  border-top: 1px solid var(--border-color);
+  padding: 1.5rem;
+  background: linear-gradient(135deg, rgba(99, 102, 241, 0.1), rgba(79, 70, 229, 0.1));
+  border-radius: 12px;
+  text-align: center;
+  border: 1px solid rgba(99, 102, 241, 0.2);
 }
 
-.comments-section h4 {
+.curso-actions-text {
+  color: var(--text-secondary);
   margin-bottom: 1rem;
+  font-size: 0.95rem;
+}
+
+.btn-large {
+  padding: 1rem 2rem;
   font-size: 1.1rem;
+}
+
+/* WebView Container for Circle */
+.webview-container {
+  height: calc(100vh - 120px);
+  min-height: 600px;
+  background: var(--card-bg);
+  border-radius: 12px;
+  overflow: hidden;
+  box-shadow: var(--shadow);
+}
+
+.circle-webview {
+  width: 100%;
+  height: 100%;
+  border: none;
+}
+
+.comunidad-loading {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 3rem;
+  color: var(--text-secondary);
+}
+
+.comunidad-loading .spinner {
+  width: 40px;
+  height: 40px;
+  margin-bottom: 1rem;
+}
+
+.auth-required-message {
+  text-align: center;
+  padding: 2rem;
+}
+
+.auth-required-message p {
+  margin-bottom: 1rem;
+}
+
+.auth-required-message .small-text {
+  font-size: 0.8rem;
+  color: var(--text-secondary);
+  margin-top: 0.5rem;
+}
+
+/* Section Comunidad - full height no padding */
+#section-comunidad {
+  padding: 0;
+  max-width: 100%;
+  height: calc(100vh - 60px);
+}
+
+#section-comunidad .webview-container {
+  height: 100%;
+  border-radius: 0;
 }
 
 /* Widget Container */

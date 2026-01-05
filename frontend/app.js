@@ -1,20 +1,26 @@
 /**
- * PoC v2 - Circle Widgets Frontend
- * Integra widgets de Circle.so con autenticacion local
+ * PoC v3 - Circle WebView Integration
+ * Integra Circle.so como webview completa con auto-login
  */
 
-const API_URL = 'http://localhost:3001';
-const CIRCLE_DOMAIN = 'fuxion-aware.circle.so';
+// Detectar entorno: producción vs desarrollo
+const isProduction = window.location.hostname !== 'localhost';
+const API_URL = isProduction
+  ? 'https://api.thenextlevelplay.co'
+  : 'http://localhost:3001';
+const CIRCLE_DOMAIN = isProduction
+  ? 'community.thenextlevelplay.co'
+  : 'fuxion-aware.circle.so';
 
 // Estado de la aplicacion
 const state = {
   user: null,
   token: null,
   circleAuthUrl: null,
-  widgetConfig: null,
   cursoPosts: [],
   currentSection: 'curso',
-  isAdmin: false // Para demo, se activa con email que contenga "admin"
+  currentCursoSlug: null,
+  circleWebviewLoaded: false
 };
 
 // ===================
@@ -55,7 +61,6 @@ async function api(endpoint, options = {}) {
 function saveAuth(token, user) {
   state.token = token;
   state.user = user;
-  state.isAdmin = user.email?.includes('admin') || user.email?.includes('kevin');
   localStorage.setItem('token', token);
   localStorage.setItem('user', JSON.stringify(user));
 }
@@ -67,7 +72,6 @@ function loadAuth() {
   if (token && user) {
     state.token = token;
     state.user = JSON.parse(user);
-    state.isAdmin = state.user.email?.includes('admin') || state.user.email?.includes('kevin');
     return true;
   }
   return false;
@@ -77,12 +81,11 @@ function clearAuth() {
   state.token = null;
   state.user = null;
   state.circleAuthUrl = null;
-  state.isAdmin = false;
+  state.circleWebviewLoaded = false;
   localStorage.removeItem('token');
   localStorage.removeItem('user');
-  // Limpiar auth de Circle para forzar re-autenticación
   sessionStorage.removeItem('circleAuthComplete');
-  sessionStorage.removeItem('pendingCircleAuth');
+  sessionStorage.removeItem('circleAuthenticated');
 }
 
 async function register(email, password, name) {
@@ -115,29 +118,16 @@ async function logout() {
 }
 
 // ===================
-// Circle Widget Functions
+// Circle WebView Functions
 // ===================
 
-async function getCircleAuthUrl() {
+async function getCircleAuthUrl(returnPath = '') {
   try {
-    const data = await api('/api/circle/auth-url');
+    const data = await api('/api/circle/auth-url' + (returnPath ? `?return_path=${encodeURIComponent(returnPath)}` : ''));
     state.circleAuthUrl = data.authUrl;
     return data.authUrl;
   } catch (error) {
     console.error('Error getting Circle auth URL:', error);
-    return null;
-  }
-}
-
-// Funciones de autenticación con Circle eliminadas - ahora usamos el flujo manual con banner
-
-async function loadWidgetConfig() {
-  try {
-    const config = await api('/api/circle/widget-config');
-    state.widgetConfig = config;
-    return config;
-  } catch (error) {
-    console.error('Error loading widget config:', error);
     return null;
   }
 }
@@ -153,39 +143,152 @@ async function loadCursoPosts() {
   }
 }
 
-function initializeWidgets() {
-  // Widget de Comunidad (Space completo)
-  const comunidadWidget = document.getElementById('comunidad-widget');
-  if (comunidadWidget) {
-    comunidadWidget.src = `https://${CIRCLE_DOMAIN}/c/space-aware?iframe=true`;
+/**
+ * Inicializa la webview de Circle con auto-login
+ * En producción (mismo TLD): carga directo con cookies
+ * En desarrollo (diferente TLD): usa popup para autenticación
+ * @param {string} path - Path opcional dentro de Circle (para deeplinks)
+ */
+async function initCircleWebview(path = '') {
+  const webview = document.getElementById('circle-webview');
+  const loading = document.getElementById('comunidad-loading');
+
+  if (!webview) return;
+
+  // Mostrar loading
+  if (loading) loading.classList.remove('hidden');
+
+  // Si ya está autenticado en Circle, cargar directamente
+  if (sessionStorage.getItem('circleAuthenticated')) {
+    loadCircleDirectly(webview, loading, path);
+    return;
   }
 
-  // Widget de Anuncios (Space completo)
-  const anunciosWidget = document.getElementById('anuncios-widget');
-  if (anunciosWidget) {
-    anunciosWidget.src = `https://${CIRCLE_DOMAIN}/c/anuncios?iframe=true`;
-  }
+  try {
+    // Obtener URL de autenticacion
+    const authUrl = await getCircleAuthUrl(path);
 
-  // Widget Admin de Anuncios (mismo space pero para admin)
-  const adminAnunciosWidget = document.getElementById('admin-anuncios-widget');
-  if (adminAnunciosWidget) {
-    adminAnunciosWidget.src = `https://${CIRCLE_DOMAIN}/c/anuncios?iframe=true`;
+    if (!authUrl) {
+      loadCircleDirectly(webview, loading, path);
+      return;
+    }
+
+    // En PRODUCCIÓN (mismo TLD): cargar auth URL directamente en el iframe
+    // Las cookies se establecen porque comparten el mismo dominio raíz
+    if (isProduction) {
+      console.log('[Circle Auth] Producción: cargando auth URL directamente (mismo TLD)');
+      webview.src = authUrl;
+      webview.onload = () => {
+        if (loading) loading.classList.add('hidden');
+        state.circleWebviewLoaded = true;
+        sessionStorage.setItem('circleAuthenticated', 'true');
+        console.log('Circle webview loaded (producción)');
+      };
+      return;
+    }
+
+    // En DESARROLLO (diferente TLD): usar popup para autenticación
+    console.log('[Circle Auth] Desarrollo: usando popup (diferente TLD)');
+    const popup = window.open(authUrl, 'circleAuth', 'width=500,height=600,scrollbars=yes');
+
+    if (!popup) {
+      showAuthPopupBlocked(webview, loading, path);
+      return;
+    }
+
+    // Monitorear el popup
+    const checkPopup = setInterval(() => {
+      try {
+        if (popup.location.hostname === CIRCLE_DOMAIN) {
+          clearInterval(checkPopup);
+          setTimeout(() => {
+            popup.close();
+            sessionStorage.setItem('circleAuthenticated', 'true');
+            loadCircleDirectly(webview, loading, path);
+          }, 1000);
+        }
+      } catch (e) {
+        // Cross-origin - esperamos
+      }
+
+      if (popup.closed) {
+        clearInterval(checkPopup);
+        sessionStorage.setItem('circleAuthenticated', 'true');
+        loadCircleDirectly(webview, loading, path);
+      }
+    }, 500);
+
+    setTimeout(() => {
+      clearInterval(checkPopup);
+      if (!popup.closed) popup.close();
+      loadCircleDirectly(webview, loading, path);
+    }, 30000);
+
+  } catch (error) {
+    console.error('Error initializing Circle webview:', error);
+    loadCircleDirectly(webview, loading, path);
   }
 }
 
-function loadCursoCommentsWidget(postSlug) {
-  const widget = document.getElementById('curso-comments-widget');
-  const link = document.getElementById('curso-comments-link');
-  if (postSlug) {
-    const url = `https://${CIRCLE_DOMAIN}/c/leadership-academy/${postSlug}`;
-    // Cargar el post especifico para ver sus comentarios
-    if (widget) {
-      widget.src = url + '?iframe=true';
-    }
-    // Actualizar link directo
-    if (link) {
-      link.href = url;
-    }
+/**
+ * Carga Circle directamente en el iframe
+ */
+function loadCircleDirectly(webview, loading, path = '') {
+  const circleUrl = path
+    ? `https://${CIRCLE_DOMAIN}${path}`
+    : `https://${CIRCLE_DOMAIN}`;
+
+  webview.src = circleUrl;
+  webview.onload = () => {
+    if (loading) loading.classList.add('hidden');
+    state.circleWebviewLoaded = true;
+    console.log('Circle webview loaded:', circleUrl);
+  };
+}
+
+/**
+ * Muestra mensaje cuando el popup está bloqueado
+ */
+function showAuthPopupBlocked(webview, loading, path) {
+  if (loading) {
+    loading.innerHTML = `
+      <div class="auth-required-message">
+        <p>Para ver la comunidad, necesitas autenticarte en Circle.</p>
+        <button class="btn btn-primary" onclick="retryCircleAuth('${path}')">
+          Conectar con Circle
+        </button>
+        <p class="small-text">Se abrirá una ventana para autenticarte</p>
+      </div>
+    `;
+  }
+}
+
+/**
+ * Reintenta autenticación con Circle
+ */
+async function retryCircleAuth(path = '') {
+  sessionStorage.removeItem('circleAuthenticated');
+  await initCircleWebview(path);
+}
+
+/**
+ * Navega a un post especifico en la comunidad (para comentarios de cursos)
+ * @param {string} postSlug - Slug del post en Circle
+ */
+function navigateToCommunityPost(postSlug) {
+  const path = `/c/leadership-academy/${postSlug}`;
+
+  // Cambiar a la seccion comunidad
+  switchSection('comunidad');
+
+  // Cargar webview con el deeplink
+  const webview = document.getElementById('circle-webview');
+  if (webview && state.circleWebviewLoaded) {
+    // Si ya esta cargada, navegar directamente
+    webview.src = `https://${CIRCLE_DOMAIN}${path}`;
+  } else {
+    // Si no, inicializar con el path
+    initCircleWebview(path);
   }
 }
 
@@ -202,13 +305,6 @@ function showError(elementId, message) {
   }
 }
 
-function showLoading(show) {
-  const overlay = document.getElementById('loading-overlay');
-  if (overlay) {
-    overlay.classList.toggle('hidden', !show);
-  }
-}
-
 function showAuthSection() {
   document.getElementById('auth-section').classList.remove('hidden');
   document.getElementById('main-content').classList.add('hidden');
@@ -221,130 +317,12 @@ async function showMainContent() {
   document.getElementById('user-info').classList.remove('hidden');
   document.getElementById('user-name').textContent = state.user?.name || state.user?.email || 'Usuario';
 
-  // Mostrar tab de admin si corresponde
-  const adminTab = document.querySelector('.admin-only');
-  if (adminTab) {
-    adminTab.classList.toggle('hidden', !state.isAdmin);
-  }
-
-  // Verificar si venimos de una autenticación de Circle
-  const urlParams = new URLSearchParams(window.location.search);
-  if (urlParams.get('circle_auth') === 'success') {
-    sessionStorage.setItem('circleAuthComplete', 'true');
-    // Limpiar URL
-    window.history.replaceState({}, '', window.location.pathname);
-    console.log('Circle auth successful via redirect');
-  }
-
-  // Verificar si necesita conectar con Circle
-  if (!sessionStorage.getItem('circleAuthComplete')) {
-    console.log('Circle auth not complete - showing banner');
-    showCircleAuthBanner();
-  } else {
-    hideCircleAuthBanner();
-  }
-
-  // Inicializar widgets (se mostrarán aunque requieran login)
-  initializeWidgets();
-
   // Cargar posts del curso
   await loadCursoPosts();
   renderCursoNav();
 
   // Mostrar seccion por defecto
   switchSection('curso');
-}
-
-// Función para conectar con Circle - abre en nueva pestaña
-async function connectToCircle() {
-  const authUrl = await getCircleAuthUrl();
-  if (!authUrl) {
-    alert('Error obteniendo URL de autenticación. Por favor recarga la página.');
-    return;
-  }
-
-  // Abrir en nueva pestaña completa
-  const newTab = window.open(authUrl, '_blank');
-
-  if (!newTab) {
-    alert('Por favor permite las ventanas emergentes para este sitio.');
-    return;
-  }
-
-  // Actualizar banner
-  const banner = document.getElementById('circle-auth-banner');
-  if (banner) {
-    const textDiv = banner.querySelector('.auth-banner-text');
-    textDiv.innerHTML = `
-      <strong>Conexion en progreso...</strong>
-      <p>Se ha abierto una nueva pestaña. Una vez que veas la comunidad Circle, cierra esa pestaña y haz clic en el boton.</p>
-    `;
-    const btn = banner.querySelector('#connect-circle-btn');
-    btn.textContent = 'Ya conecte, recargar widgets';
-    btn.onclick = () => {
-      sessionStorage.setItem('circleAuthComplete', 'true');
-      banner.classList.add('hidden');
-      // Recargar widgets
-      reloadWidgets();
-    };
-  }
-}
-
-// Función para reconectar con Circle manualmente
-async function reconnectCircle() {
-  // Limpiar estado de auth de Circle
-  sessionStorage.removeItem('circleAuthComplete');
-
-  // Mostrar banner
-  showCircleAuthBanner();
-
-  // Iniciar conexión
-  await connectToCircle();
-}
-
-// Mostrar banner de autenticación requerida
-function showCircleAuthBanner() {
-  const banner = document.getElementById('circle-auth-banner');
-  if (banner) {
-    banner.classList.remove('hidden');
-  }
-}
-
-// Ocultar banner
-function hideCircleAuthBanner() {
-  const banner = document.getElementById('circle-auth-banner');
-  if (banner) {
-    banner.classList.add('hidden');
-  }
-}
-
-// Recargar todos los widgets
-function reloadWidgets() {
-  console.log('Reloading widgets...');
-
-  // Recargar widget de comunidad
-  const comunidadWidget = document.getElementById('comunidad-widget');
-  if (comunidadWidget && comunidadWidget.src) {
-    comunidadWidget.src = comunidadWidget.src;
-  }
-
-  // Recargar widget de anuncios
-  const anunciosWidget = document.getElementById('anuncios-widget');
-  if (anunciosWidget && anunciosWidget.src) {
-    anunciosWidget.src = anunciosWidget.src;
-  }
-
-  // Recargar widget de admin
-  const adminWidget = document.getElementById('admin-anuncios-widget');
-  if (adminWidget && adminWidget.src) {
-    adminWidget.src = adminWidget.src;
-  }
-
-  // Recargar widget de comentarios del curso
-  const cursoWidget = document.getElementById('curso-comments-widget');
-  if (cursoWidget && cursoWidget.src) {
-    cursoWidget.src = cursoWidget.src;
-  }
 }
 
 async function switchSection(sectionName) {
@@ -366,10 +344,9 @@ async function switchSection(sectionName) {
     tab.classList.toggle('active', tab.dataset.section === sectionName);
   });
 
-  // Cargar datos especificos de la seccion
-  if (sectionName === 'admin-anuncios') {
-    const posts = await loadAnnouncements();
-    renderAnnouncementsList(posts);
+  // Si es comunidad, inicializar webview si no esta cargada
+  if (sectionName === 'comunidad' && !state.circleWebviewLoaded) {
+    await initCircleWebview();
   }
 }
 
@@ -390,23 +367,19 @@ function renderCursoNav() {
     if (name.includes('modulo')) {
       modulos.push(post);
     } else if (name.includes('leccion')) {
-      // Extraer numero de modulo de la leccion (ej: "Leccion 1.1" -> modulo 1)
       const match = post.name.match(/(\d+)\./);
       const moduloNum = match ? match[1] : '1';
       if (!lecciones[moduloNum]) lecciones[moduloNum] = [];
       lecciones[moduloNum].push(post);
     } else if (name.includes('curso') || name.includes('general') || name.includes('bienvenid')) {
-      // Post del curso general
       cursoGeneral.push(post);
     }
   });
 
-  // Ordenar
   modulos.sort((a, b) => a.name.localeCompare(b.name));
 
   let html = '';
 
-  // Primero mostrar el curso general
   if (cursoGeneral.length > 0) {
     html += `
       <div class="curso-nav-item curso-nav-general">
@@ -421,7 +394,6 @@ function renderCursoNav() {
     `;
   }
 
-  // Luego los modulos y lecciones
   modulos.forEach((modulo, index) => {
     const moduloNum = (index + 1).toString();
     const moduloLecciones = lecciones[moduloNum] || [];
@@ -455,62 +427,13 @@ function showCursoDetail(postId, postSlug, postName) {
   document.getElementById('curso-detail').classList.remove('hidden');
   document.getElementById('curso-detail-title').textContent = postName;
 
-  // Cargar widget de comentarios para este post
-  loadCursoCommentsWidget(postSlug);
+  // Guardar el slug actual para el boton de comentarios
+  state.currentCursoSlug = postSlug;
 
   // Marcar item activo
-  document.querySelectorAll('.curso-nav-modulo, .curso-nav-leccion').forEach(btn => {
+  document.querySelectorAll('.curso-nav-modulo, .curso-nav-leccion, .curso-nav-curso').forEach(btn => {
     btn.classList.toggle('active', btn.dataset.postId === postId.toString());
   });
-}
-
-// ===================
-// Admin Functions
-// ===================
-
-async function createAnnouncement(title, body) {
-  return await api('/api/circle/admin/announcements', {
-    method: 'POST',
-    body: JSON.stringify({ title, body })
-  });
-}
-
-async function loadAnnouncements() {
-  try {
-    const data = await api('/api/circle/announcements');
-    return data.posts || [];
-  } catch (error) {
-    console.error('Error loading announcements:', error);
-    return [];
-  }
-}
-
-function renderAnnouncementsList(posts) {
-  const container = document.getElementById('announcements-list');
-  if (!container) return;
-
-  if (posts.length === 0) {
-    container.innerHTML = '<p class="empty-state">No hay anuncios publicados</p>';
-    return;
-  }
-
-  container.innerHTML = posts.map(post => `
-    <div class="announcement-card">
-      <h4>${post.name}</h4>
-      <p>${post.body?.content?.[0]?.content?.[0]?.text || 'Sin contenido'}</p>
-      <small>Publicado: ${new Date(post.created_at).toLocaleDateString('es-ES')}</small>
-    </div>
-  `).join('');
-}
-
-function showAnnouncementStatus(message, isError = false) {
-  const status = document.getElementById('announcement-status');
-  if (status) {
-    status.textContent = message;
-    status.className = `status-msg ${isError ? 'error' : 'success'}`;
-    status.classList.remove('hidden');
-    setTimeout(() => status.classList.add('hidden'), 5000);
-  }
 }
 
 // ===================
@@ -566,19 +489,6 @@ function setupEventListeners() {
     showAuthSection();
   });
 
-  // Reconnect to Circle (header button)
-  document.getElementById('reconnect-circle-btn').addEventListener('click', async () => {
-    await reconnectCircle();
-  });
-
-  // Connect to Circle (banner button)
-  const connectBtn = document.getElementById('connect-circle-btn');
-  if (connectBtn) {
-    connectBtn.addEventListener('click', async () => {
-      await connectToCircle();
-    });
-  }
-
   // Section tabs
   document.querySelectorAll('.section-tab').forEach(tab => {
     tab.addEventListener('click', () => {
@@ -598,45 +508,15 @@ function setupEventListeners() {
     }
   });
 
-  // Admin announcement form
-  const announcementForm = document.getElementById('create-announcement-form');
-  if (announcementForm) {
-    announcementForm.addEventListener('submit', async (e) => {
-      e.preventDefault();
-
-      const titleInput = document.getElementById('announcement-title');
-      const bodyInput = document.getElementById('announcement-body');
-      const submitBtn = announcementForm.querySelector('button[type="submit"]');
-
-      const title = titleInput.value.trim();
-      const body = bodyInput.value.trim();
-
-      if (!title || !body) {
-        showAnnouncementStatus('Titulo y contenido son requeridos', true);
-        return;
-      }
-
-      try {
-        submitBtn.disabled = true;
-        submitBtn.textContent = 'Publicando...';
-
-        await createAnnouncement(title, body);
-
-        showAnnouncementStatus('Anuncio publicado exitosamente');
-        titleInput.value = '';
-        bodyInput.value = '';
-
-        // Recargar lista de anuncios
-        const posts = await loadAnnouncements();
-        renderAnnouncementsList(posts);
-      } catch (error) {
-        showAnnouncementStatus(error.message || 'Error al publicar anuncio', true);
-      } finally {
-        submitBtn.disabled = false;
-        submitBtn.textContent = 'Publicar Anuncio';
-      }
-    });
-  }
+  // Go to comments button (deeplink to community)
+  document.getElementById('go-to-comments-btn').addEventListener('click', () => {
+    if (state.currentCursoSlug) {
+      navigateToCommunityPost(state.currentCursoSlug);
+    } else {
+      // Si no hay curso seleccionado, ir a la comunidad general
+      switchSection('comunidad');
+    }
+  });
 }
 
 // ===================

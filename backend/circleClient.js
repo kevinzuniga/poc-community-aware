@@ -13,7 +13,8 @@ const ADMIN_BASE_URL = 'https://app.circle.so/api/admin/v2';
 const ADMIN_TOKEN = process.env.CIRCLE_ADMIN_TOKEN;
 const HEADLESS_TOKEN = process.env.CIRCLE_HEADLESS_TOKEN;
 const COMMUNITY_ID = process.env.CIRCLE_COMMUNITY_ID;
-const CIRCLE_DOMAIN = process.env.CIRCLE_DOMAIN;
+// En producción usa custom domain, en dev usa el dominio original de Circle
+const CIRCLE_DOMAIN = process.env.CIRCLE_DOMAIN || 'fuxion-aware.circle.so';
 
 // Space IDs
 const SPACE_IDS = {

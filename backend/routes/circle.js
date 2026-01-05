@@ -54,13 +54,27 @@ const requireCircleMember = (req, res, next) => {
 
 /**
  * GET /api/circle/auth-url
- * Obtener URL para inyección de cookies (auto-login en widgets)
- * El frontend redirige a esta URL en un iframe oculto para autenticar
+ * Obtener URL para auto-login en Circle (webview)
+ * @query {string} return_path - Path opcional dentro de Circle para redirigir después del login
  */
 router.get('/auth-url', requireCircleMember, async (req, res) => {
   try {
+    const { return_path } = req.query;
     const tokenData = await circleClient.getMemberToken(req.user.circleMemberId);
-    const authUrl = circleClient.getCookieInjectionUrl(tokenData.accessToken);
+
+    // Construir la URL de retorno dentro de Circle
+    let returnUrl = null;
+    if (return_path) {
+      const domain = circleClient.getConfig().domain;
+      returnUrl = `https://${domain}${return_path}`;
+    }
+
+    const authUrl = circleClient.getCookieInjectionUrl(tokenData.accessToken, returnUrl);
+
+    console.log(`[Circle Auth] Generated auth URL for member ${req.user.circleMemberId}`);
+    if (return_path) {
+      console.log(`[Circle Auth] Will redirect to: ${returnUrl}`);
+    }
 
     res.json({
       authUrl,
