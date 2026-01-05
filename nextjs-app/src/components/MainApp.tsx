@@ -5,19 +5,32 @@ import { useAuth } from '@/context/AuthContext';
 
 const CIRCLE_DOMAIN = process.env.NEXT_PUBLIC_CIRCLE_DOMAIN || 'community.thenextlevelplay.co';
 
+// Circle space slugs - these match the spaces in Circle
+const CIRCLE_SPACES = {
+  curso: 'leadership-academy',
+  comunidad: 'space-aware',
+  anuncios: 'anuncios'
+};
+
+// Embed parameters to hide Circle's navigation
+const EMBED_PARAMS = '?hide_community_sidebar=true&hide_header=false';
+
 interface Post {
   id: number;
   name: string;
   slug: string;
+  space_id?: number;
+  url?: string;
 }
 
 export function MainApp() {
   const { user, logout } = useAuth();
-  const [activeSection, setActiveSection] = useState<'cursos' | 'comunidad'>('cursos');
+  const [activeSection, setActiveSection] = useState<'cursos' | 'comunidad' | 'anuncios'>('cursos');
   const [posts, setPosts] = useState<Post[]>([]);
   const [selectedPost, setSelectedPost] = useState<Post | null>(null);
   const [circleLoading, setCircleLoading] = useState(false);
   const [circleAuthenticated, setCircleAuthenticated] = useState(false);
+  const [currentCirclePath, setCurrentCirclePath] = useState('');
 
   useEffect(() => {
     loadPosts();
@@ -40,6 +53,9 @@ export function MainApp() {
   async function initCircleWebview(path = '') {
     setCircleLoading(true);
 
+    // Add embed parameter to hide sidebar
+    const pathWithEmbed = path ? `${path}?hide_community_sidebar=true` : '?hide_community_sidebar=true';
+
     // If already authenticated, load directly
     if (circleAuthenticated) {
       loadCircleDirectly(path);
@@ -47,7 +63,7 @@ export function MainApp() {
     }
 
     try {
-      const res = await fetch(`/api/circle/auth-url${path ? `?return_path=${encodeURIComponent(path)}` : ''}`);
+      const res = await fetch(`/api/circle/auth-url?return_path=${encodeURIComponent(pathWithEmbed)}`);
       if (!res.ok) {
         loadCircleDirectly(path);
         return;
@@ -74,20 +90,31 @@ export function MainApp() {
   function loadCircleDirectly(path = '') {
     const iframe = document.getElementById('circle-webview') as HTMLIFrameElement;
     if (iframe) {
-      iframe.src = path ? `https://${CIRCLE_DOMAIN}${path}` : `https://${CIRCLE_DOMAIN}`;
+      const baseUrl = `https://${CIRCLE_DOMAIN}${path}`;
+      const separator = path.includes('?') ? '&' : '?';
+      iframe.src = `${baseUrl}${separator}hide_community_sidebar=true`;
       iframe.onload = () => setCircleLoading(false);
     }
   }
 
-  function handleSectionChange(section: 'cursos' | 'comunidad') {
+  function handleSectionChange(section: 'cursos' | 'comunidad' | 'anuncios') {
     setActiveSection(section);
-    if (section === 'comunidad' && !circleAuthenticated) {
-      initCircleWebview();
+
+    if (section === 'comunidad') {
+      const path = `/c/${CIRCLE_SPACES.comunidad}`;
+      setCurrentCirclePath(path);
+      initCircleWebview(path);
+    } else if (section === 'anuncios') {
+      const path = `/c/${CIRCLE_SPACES.anuncios}`;
+      setCurrentCirclePath(path);
+      initCircleWebview(path);
     }
   }
 
   function goToPostDiscussion(post: Post) {
-    const path = `/c/leadership-academy/${post.slug}`;
+    // Deep link to the specific post in the curso space
+    const path = `/c/${CIRCLE_SPACES.curso}/${post.slug}`;
+    setCurrentCirclePath(path);
     setActiveSection('comunidad');
     initCircleWebview(path);
   }
@@ -139,6 +166,16 @@ export function MainApp() {
           }`}
         >
           <span>💬</span> Comunidad
+        </button>
+        <button
+          onClick={() => handleSectionChange('anuncios')}
+          className={`flex items-center gap-2 px-5 py-2 rounded-lg font-medium transition-colors ${
+            activeSection === 'anuncios'
+              ? 'bg-indigo-600 text-white'
+              : 'text-gray-600 hover:bg-gray-100'
+          }`}
+        >
+          <span>📢</span> Anuncios
         </button>
       </nav>
 
@@ -250,8 +287,8 @@ export function MainApp() {
           </div>
         )}
 
-        {/* Comunidad Section */}
-        {activeSection === 'comunidad' && (
+        {/* Circle Webview Section (Comunidad or Anuncios) */}
+        {(activeSection === 'comunidad' || activeSection === 'anuncios') && (
           <div className="h-[calc(100vh-120px)]">
             {circleLoading && (
               <div className="flex flex-col items-center justify-center h-full bg-white">
