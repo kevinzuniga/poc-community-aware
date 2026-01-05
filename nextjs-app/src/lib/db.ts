@@ -1,8 +1,20 @@
 /**
- * Database utilities using Vercel Postgres
+ * Database utilities using Postgres
+ * Compatible with both Vercel Postgres and Railway
  */
 
-import { sql } from '@vercel/postgres';
+import { Pool } from 'pg';
+
+const pool = new Pool({
+  connectionString: process.env.DATABASE_URL || process.env.POSTGRES_URL,
+  ssl: process.env.NODE_ENV === 'production' ? { rejectUnauthorized: false } : false
+});
+
+const sql = async (strings: TemplateStringsArray, ...values: unknown[]) => {
+  const query = strings.reduce((acc, str, i) => acc + str + (i < values.length ? `$${i + 1}` : ''), '');
+  const result = await pool.query(query, values);
+  return result;
+};
 
 export interface User {
   id: number;
