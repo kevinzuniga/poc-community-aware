@@ -35,10 +35,17 @@ export async function GET(request: NextRequest) {
     const authUrl = getCookieInjectionUrl(tokenData.accessToken, returnUrl);
 
     console.log(`[Circle Auth] Generated auth URL for member ${user.circleMemberId}`);
+    console.log(`[Circle Auth] Auth URL: ${authUrl}`);
+    console.log(`[Circle Auth] Token expires at: ${new Date(tokenData.expiresAt).toISOString()}`);
 
     return NextResponse.json({
       authUrl,
       expiresAt: tokenData.expiresAt,
+      debug: {
+        memberId: user.circleMemberId,
+        domain: getConfig().domain,
+        tokenPreview: tokenData.accessToken.substring(0, 20) + '...'
+      }
     });
   } catch (error: any) {
     console.error('Error getting auth URL:', error);

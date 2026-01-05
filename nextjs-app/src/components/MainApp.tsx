@@ -80,8 +80,11 @@ export function MainApp() {
         return;
       }
 
-      const { authUrl } = await res.json();
+      const data = await res.json();
+      const { authUrl, debug } = data;
       console.log('Got auth URL, loading in iframe');
+      console.log('Auth URL:', authUrl);
+      console.log('Debug info:', debug);
 
       // Load auth URL directly in iframe (same TLD = cookies work)
       const iframe = document.getElementById('circle-webview') as HTMLIFrameElement;
