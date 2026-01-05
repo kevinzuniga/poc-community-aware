@@ -12,13 +12,6 @@ export async function GET() {
     );
   }
 
-  if (!user.circleMemberId) {
-    return NextResponse.json(
-      { error: 'User is not linked to Circle' },
-      { status: 400 }
-    );
-  }
-
   try {
     const posts = await getCursoPosts();
 
