@@ -36,7 +36,21 @@ export function MainApp() {
     loadPosts();
     // Check if already authenticated with Circle
     setCircleAuthenticated(sessionStorage.getItem('circleAuthenticated') === 'true');
+    // Ensure user is linked to Circle
+    linkUserToCircle();
   }, []);
+
+  async function linkUserToCircle() {
+    try {
+      const res = await fetch('/api/auth/link-circle', { method: 'POST' });
+      if (res.ok) {
+        const data = await res.json();
+        console.log('Circle link status:', data);
+      }
+    } catch (error) {
+      console.error('Error linking to Circle:', error);
+    }
+  }
 
   async function loadPosts() {
     try {
@@ -56,20 +70,18 @@ export function MainApp() {
     // Add embed parameter to hide sidebar
     const pathWithEmbed = path ? `${path}?hide_community_sidebar=true` : '?hide_community_sidebar=true';
 
-    // If already authenticated, load directly
-    if (circleAuthenticated) {
-      loadCircleDirectly(path);
-      return;
-    }
-
     try {
+      // Always try to get fresh auth URL to ensure user is authenticated
       const res = await fetch(`/api/circle/auth-url?return_path=${encodeURIComponent(pathWithEmbed)}`);
+
       if (!res.ok) {
+        console.log('Auth URL failed, loading directly');
         loadCircleDirectly(path);
         return;
       }
 
       const { authUrl } = await res.json();
+      console.log('Got auth URL, loading in iframe');
 
       // Load auth URL directly in iframe (same TLD = cookies work)
       const iframe = document.getElementById('circle-webview') as HTMLIFrameElement;
