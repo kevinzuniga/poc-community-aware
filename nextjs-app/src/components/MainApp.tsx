@@ -231,7 +231,7 @@ export function MainApp() {
                           className={`w-full text-left px-4 py-3 rounded-lg flex items-center gap-2 transition-colors ${
                             selectedPost?.id === modulo.id
                               ? 'bg-indigo-600 text-white'
-                              : 'bg-gray-100 hover:bg-indigo-100'
+                              : 'bg-gray-100 text-gray-800 hover:bg-indigo-100'
                           }`}
                         >
                           <span>📦</span> {modulo.name}
@@ -247,7 +247,7 @@ export function MainApp() {
                                 className={`w-full text-left px-3 py-2 rounded-lg text-sm flex items-center gap-2 transition-colors ${
                                   selectedPost?.id === leccion.id
                                     ? 'bg-indigo-600 text-white'
-                                    : 'hover:bg-gray-100'
+                                    : 'text-gray-700 hover:bg-gray-100'
                                 }`}
                               >
                                 <span>📖</span> {leccion.name}
