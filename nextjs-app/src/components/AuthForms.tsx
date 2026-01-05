@@ -87,7 +87,7 @@ export function AuthForms() {
                 type="email"
                 name="email"
                 required
-                className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:border-indigo-500 focus:outline-none transition-colors"
+                className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:border-indigo-500 focus:outline-none transition-colors text-gray-900 bg-white placeholder-gray-400"
               />
             </div>
             <div>
@@ -98,7 +98,7 @@ export function AuthForms() {
                 type="password"
                 name="password"
                 required
-                className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:border-indigo-500 focus:outline-none transition-colors"
+                className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:border-indigo-500 focus:outline-none transition-colors text-gray-900 bg-white placeholder-gray-400"
               />
             </div>
             {error && (
@@ -130,7 +130,7 @@ export function AuthForms() {
                 type="text"
                 name="name"
                 required
-                className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:border-indigo-500 focus:outline-none transition-colors"
+                className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:border-indigo-500 focus:outline-none transition-colors text-gray-900 bg-white placeholder-gray-400"
               />
             </div>
             <div>
@@ -141,7 +141,7 @@ export function AuthForms() {
                 type="email"
                 name="email"
                 required
-                className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:border-indigo-500 focus:outline-none transition-colors"
+                className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:border-indigo-500 focus:outline-none transition-colors text-gray-900 bg-white placeholder-gray-400"
               />
             </div>
             <div>
@@ -153,7 +153,7 @@ export function AuthForms() {
                 name="password"
                 minLength={6}
                 required
-                className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:border-indigo-500 focus:outline-none transition-colors"
+                className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:border-indigo-500 focus:outline-none transition-colors text-gray-900 bg-white placeholder-gray-400"
               />
             </div>
             {error && (
