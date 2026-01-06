@@ -3,24 +3,19 @@
 import { useState, useEffect } from 'react';
 import { useAuth } from '@/context/AuthContext';
 
-const CIRCLE_DOMAIN = process.env.NEXT_PUBLIC_CIRCLE_DOMAIN || 'community.thenextlevelplay.co';
+const CIRCLE_DOMAIN = process.env.NEXT_PUBLIC_CIRCLE_DOMAIN || 'fuxion-aware.circle.so';
 
-// Circle space slugs - these match the spaces in Circle
+// Circle space slugs
 const CIRCLE_SPACES = {
   curso: 'leadership-academy',
   comunidad: 'space-aware',
   anuncios: 'anuncios'
 };
 
-// Embed parameters to hide Circle's navigation
-const EMBED_PARAMS = '?hide_community_sidebar=true&hide_header=false';
-
 interface Post {
   id: number;
   name: string;
   slug: string;
-  space_id?: number;
-  url?: string;
 }
 
 export function MainApp() {
@@ -28,34 +23,50 @@ export function MainApp() {
   const [activeSection, setActiveSection] = useState<'cursos' | 'comunidad' | 'anuncios'>('cursos');
   const [posts, setPosts] = useState<Post[]>([]);
   const [selectedPost, setSelectedPost] = useState<Post | null>(null);
-  const [circleLoading, setCircleLoading] = useState(false);
-  const [circleAuthenticated, setCircleAuthenticated] = useState(false);
-  const [currentCirclePath, setCurrentCirclePath] = useState('');
-  const [circlePendingActivation, setCirclePendingActivation] = useState(false);
-  const [fixingCircle, setFixingCircle] = useState(false);
-
-  async function fixCircleLink() {
-    setFixingCircle(true);
-    try {
-      const res = await fetch('/api/auth/fix-circle-link', { method: 'POST' });
-      const data = await res.json();
-      if (data.success) {
-        alert(`Circle link fixed! Old ID: ${data.oldCircleMemberId} → New ID: ${data.newCircleMemberId}. Reloading...`);
-        window.location.reload();
-      } else {
-        alert('Error: ' + (data.error || 'Unknown error'));
-      }
-    } catch (error) {
-      alert('Error fixing Circle link');
-    }
-    setFixingCircle(false);
-  }
+  const [showComments, setShowComments] = useState(false);
+  const [circleAuthUrl, setCircleAuthUrl] = useState<string | null>(null);
+  const [isAuthenticating, setIsAuthenticating] = useState(false);
 
   useEffect(() => {
     loadPosts();
-    // Check if already authenticated with Circle
-    setCircleAuthenticated(sessionStorage.getItem('circleAuthenticated') === 'true');
+    authenticateWithCircle();
   }, []);
+
+  async function authenticateWithCircle() {
+    // Check if already authenticated
+    if (sessionStorage.getItem('circleAuthenticated') === 'true') {
+      return;
+    }
+
+    setIsAuthenticating(true);
+    try {
+      const res = await fetch('/api/circle/auth-url?return_path=/');
+      const data = await res.json();
+
+      if (data.authUrl) {
+        // Open popup for Circle auth
+        const popup = window.open(data.authUrl, 'circleAuth', 'width=600,height=700');
+
+        const checkPopup = setInterval(() => {
+          if (!popup || popup.closed) {
+            clearInterval(checkPopup);
+            sessionStorage.setItem('circleAuthenticated', 'true');
+            setIsAuthenticating(false);
+          }
+        }, 500);
+
+        setTimeout(() => {
+          clearInterval(checkPopup);
+          if (popup && !popup.closed) popup.close();
+          sessionStorage.setItem('circleAuthenticated', 'true');
+          setIsAuthenticating(false);
+        }, 60000);
+      }
+    } catch (error) {
+      console.error('Auth error:', error);
+      setIsAuthenticating(false);
+    }
+  }
 
   async function loadPosts() {
     try {
@@ -69,109 +80,19 @@ export function MainApp() {
     }
   }
 
-  async function initCircleWebview(path = '') {
-    setCircleLoading(true);
-    setCirclePendingActivation(false);
-
-    // Add embed parameter to hide sidebar
-    const pathWithEmbed = path ? `${path}?hide_community_sidebar=true` : '?hide_community_sidebar=true';
-
-    // Check if we already authenticated with Circle (cookies are set)
-    const alreadyAuthenticated = sessionStorage.getItem('circleAuthenticated') === 'true';
-
-    try {
-      // Get auth URL
-      const res = await fetch(`/api/circle/auth-url?return_path=${encodeURIComponent(pathWithEmbed)}`);
-      const data = await res.json();
-
-      // Check for inactive member error
-      if (data.code === 'MEMBER_INACTIVE') {
-        console.log('Circle member pending activation');
-        setCircleLoading(false);
-        setCirclePendingActivation(true);
-        return;
-      }
-
-      if (!res.ok) {
-        console.log('Auth URL failed, loading directly');
-        loadCircleDirectly(path);
-        return;
-      }
-
-      const { authUrl, debug } = data;
-      console.log('Got auth URL');
-      console.log('Debug info:', debug);
-
-      // If not yet authenticated, open popup to set cookies
-      if (!alreadyAuthenticated) {
-        console.log('First time - opening popup for Circle auth');
-
-        // Open auth URL in popup window
-        const popup = window.open(authUrl, 'circleAuth', 'width=600,height=700');
-
-        // Check when popup closes or after timeout
-        const checkPopup = setInterval(() => {
-          if (!popup || popup.closed) {
-            clearInterval(checkPopup);
-            console.log('Popup closed - cookies should be set');
-            sessionStorage.setItem('circleAuthenticated', 'true');
-            // Now load Circle in iframe
-            loadCircleDirectly(path);
-          }
-        }, 500);
-
-        // Timeout after 60 seconds
-        setTimeout(() => {
-          clearInterval(checkPopup);
-          if (popup && !popup.closed) {
-            popup.close();
-          }
-          sessionStorage.setItem('circleAuthenticated', 'true');
-          loadCircleDirectly(path);
-        }, 60000);
-
-        return;
-      }
-
-      // Already authenticated - load Circle directly in iframe
-      console.log('Already authenticated, loading Circle in iframe');
-      loadCircleDirectly(path);
-    } catch (error) {
-      console.error('Error initializing Circle:', error);
-      loadCircleDirectly(path);
-    }
-  }
-
-  function loadCircleDirectly(path = '') {
-    const iframe = document.getElementById('circle-webview') as HTMLIFrameElement;
-    if (iframe) {
-      const baseUrl = `https://${CIRCLE_DOMAIN}${path}`;
-      const separator = path.includes('?') ? '&' : '?';
-      iframe.src = `${baseUrl}${separator}hide_community_sidebar=true`;
-      iframe.onload = () => setCircleLoading(false);
-    }
-  }
-
   function handleSectionChange(section: 'cursos' | 'comunidad' | 'anuncios') {
     setActiveSection(section);
-
-    if (section === 'comunidad') {
-      const path = `/c/${CIRCLE_SPACES.comunidad}`;
-      setCurrentCirclePath(path);
-      initCircleWebview(path);
-    } else if (section === 'anuncios') {
-      const path = `/c/${CIRCLE_SPACES.anuncios}`;
-      setCurrentCirclePath(path);
-      initCircleWebview(path);
-    }
+    setShowComments(false);
   }
 
-  function goToPostDiscussion(post: Post) {
-    // Deep link to the specific post in the curso space
-    const path = `/c/${CIRCLE_SPACES.curso}/${post.slug}`;
-    setCurrentCirclePath(path);
-    setActiveSection('comunidad');
-    initCircleWebview(path);
+  // Build Circle embed URL for a space
+  function getSpaceEmbedUrl(spaceSlug: string) {
+    return `https://${CIRCLE_DOMAIN}/c/${spaceSlug}?hide_community_sidebar=true`;
+  }
+
+  // Build Circle embed URL for post comments
+  function getPostCommentsUrl(postSlug: string) {
+    return `https://${CIRCLE_DOMAIN}/c/${CIRCLE_SPACES.curso}/${postSlug}?hide_community_sidebar=true`;
   }
 
   // Organize posts
@@ -210,7 +131,7 @@ export function MainApp() {
               : 'text-gray-600 hover:bg-gray-100'
           }`}
         >
-          <span>📚</span> Cursos
+          📚 Cursos
         </button>
         <button
           onClick={() => handleSectionChange('comunidad')}
@@ -220,7 +141,7 @@ export function MainApp() {
               : 'text-gray-600 hover:bg-gray-100'
           }`}
         >
-          <span>💬</span> Comunidad
+          💬 Comunidad
         </button>
         <button
           onClick={() => handleSectionChange('anuncios')}
@@ -230,7 +151,7 @@ export function MainApp() {
               : 'text-gray-600 hover:bg-gray-100'
           }`}
         >
-          <span>📢</span> Anuncios
+          📢 Anuncios
         </button>
       </nav>
 
@@ -254,14 +175,14 @@ export function MainApp() {
                     {cursoGeneral.map(post => (
                       <button
                         key={post.id}
-                        onClick={() => setSelectedPost(post)}
+                        onClick={() => { setSelectedPost(post); setShowComments(false); }}
                         className={`w-full text-left px-4 py-3 rounded-lg flex items-center gap-2 transition-colors ${
                           selectedPost?.id === post.id
                             ? 'bg-indigo-600 text-white'
                             : 'bg-gradient-to-r from-indigo-500 to-indigo-600 text-white hover:opacity-90'
                         }`}
                       >
-                        <span>🎓</span> {post.name}
+                        🎓 {post.name}
                       </button>
                     ))}
 
@@ -270,30 +191,29 @@ export function MainApp() {
                     {modulos.map((modulo, idx) => (
                       <div key={modulo.id}>
                         <button
-                          onClick={() => setSelectedPost(modulo)}
+                          onClick={() => { setSelectedPost(modulo); setShowComments(false); }}
                           className={`w-full text-left px-4 py-3 rounded-lg flex items-center gap-2 transition-colors ${
                             selectedPost?.id === modulo.id
                               ? 'bg-indigo-600 text-white'
                               : 'bg-gray-100 text-gray-800 hover:bg-indigo-100'
                           }`}
                         >
-                          <span>📦</span> {modulo.name}
+                          📦 {modulo.name}
                         </button>
-                        {/* Lecciones del módulo */}
                         <div className="ml-4 mt-1 space-y-1">
                           {lecciones
                             .filter(l => l.name.startsWith(`Leccion ${idx + 1}.`))
                             .map(leccion => (
                               <button
                                 key={leccion.id}
-                                onClick={() => setSelectedPost(leccion)}
+                                onClick={() => { setSelectedPost(leccion); setShowComments(false); }}
                                 className={`w-full text-left px-3 py-2 rounded-lg text-sm flex items-center gap-2 transition-colors ${
                                   selectedPost?.id === leccion.id
                                     ? 'bg-indigo-600 text-white'
                                     : 'text-gray-700 hover:bg-gray-100'
                                 }`}
                               >
-                                <span>📖</span> {leccion.name}
+                                📖 {leccion.name}
                               </button>
                             ))}
                         </div>
@@ -323,17 +243,39 @@ export function MainApp() {
                       <p className="text-gray-400 text-sm">(Video, texto, recursos, etc.)</p>
                     </div>
 
-                    {/* Go to discussion button */}
-                    <div className="bg-gradient-to-r from-indigo-50 to-purple-50 rounded-xl p-6 text-center border border-indigo-100">
-                      <p className="text-gray-600 mb-4">
-                        ¿Tienes preguntas o comentarios sobre este curso?
-                      </p>
-                      <button
-                        onClick={() => goToPostDiscussion(selectedPost)}
-                        className="px-6 py-3 bg-indigo-600 text-white rounded-xl font-semibold hover:bg-indigo-700 transition-colors text-lg"
-                      >
-                        💬 Ir a la discusion en Comunidad
-                      </button>
+                    {/* Comments Widget (Circle iframe) */}
+                    <div className="border border-gray-200 rounded-xl overflow-hidden">
+                      {!showComments ? (
+                        <div className="p-6 text-center bg-gradient-to-r from-indigo-50 to-purple-50">
+                          <p className="text-gray-600 mb-4">
+                            ¿Tienes preguntas o comentarios sobre este curso?
+                          </p>
+                          <button
+                            onClick={() => setShowComments(true)}
+                            className="px-6 py-3 bg-indigo-600 text-white rounded-xl font-semibold hover:bg-indigo-700 transition-colors text-lg"
+                          >
+                            💬 Ver comentarios
+                          </button>
+                        </div>
+                      ) : (
+                        <div>
+                          <div className="px-4 py-3 bg-indigo-100 border-b flex items-center justify-between">
+                            <h4 className="font-semibold text-indigo-800">Comentarios</h4>
+                            <button
+                              onClick={() => setShowComments(false)}
+                              className="text-indigo-600 hover:text-indigo-800 text-sm"
+                            >
+                              Ocultar
+                            </button>
+                          </div>
+                          {/* Circle Comments Widget */}
+                          <iframe
+                            src={getPostCommentsUrl(selectedPost.slug)}
+                            className="w-full h-[500px] border-0"
+                            allow="clipboard-write"
+                          />
+                        </div>
+                      )}
                     </div>
                   </div>
                 )}
@@ -342,54 +284,36 @@ export function MainApp() {
           </div>
         )}
 
-        {/* Circle Webview Section (Comunidad or Anuncios) */}
-        {(activeSection === 'comunidad' || activeSection === 'anuncios') && (
+        {/* Comunidad Section - Circle Widget */}
+        {activeSection === 'comunidad' && (
           <div className="h-[calc(100vh-120px)]">
-            {circleLoading && (
-              <div className="flex flex-col items-center justify-center h-full bg-white">
-                <div className="w-10 h-10 border-4 border-gray-200 border-t-indigo-600 rounded-full animate-spin mb-4"></div>
-                <p className="text-gray-500">Conectando con Circle...</p>
-              </div>
-            )}
-            {circlePendingActivation && (
-              <div className="flex flex-col items-center justify-center h-full bg-gradient-to-br from-amber-50 to-orange-50">
-                <div className="bg-white rounded-2xl shadow-lg p-8 max-w-md text-center">
-                  <div className="text-6xl mb-4">📧</div>
-                  <h2 className="text-2xl font-bold text-gray-800 mb-4">
-                    Activa tu cuenta de Circle
-                  </h2>
-                  <p className="text-gray-600 mb-6">
-                    Para acceder a la comunidad, revisa tu email y haz clic en el enlace de invitacion de Circle.
-                  </p>
-                  <div className="bg-amber-100 rounded-lg p-4 text-amber-800 text-sm mb-6">
-                    <strong>Nota:</strong> El email puede tardar unos minutos en llegar. Revisa tu carpeta de spam si no lo ves.
-                  </div>
-                  <div className="flex flex-col gap-3">
-                    <button
-                      onClick={() => initCircleWebview(currentCirclePath)}
-                      className="px-6 py-3 bg-indigo-600 text-white rounded-xl font-semibold hover:bg-indigo-700 transition-colors"
-                    >
-                      Ya active mi cuenta - Reintentar
-                    </button>
-                    <button
-                      onClick={fixCircleLink}
-                      disabled={fixingCircle}
-                      className="px-6 py-3 bg-gray-200 text-gray-700 rounded-xl font-medium hover:bg-gray-300 transition-colors text-sm"
-                    >
-                      {fixingCircle ? 'Arreglando...' : 'Arreglar conexion con Circle'}
-                    </button>
-                  </div>
-                </div>
-              </div>
-            )}
             <iframe
-              id="circle-webview"
-              className={`w-full h-full border-0 ${circleLoading || circlePendingActivation ? 'hidden' : ''}`}
+              src={getSpaceEmbedUrl(CIRCLE_SPACES.comunidad)}
+              className="w-full h-full border-0"
+              allow="clipboard-write"
+            />
+          </div>
+        )}
+
+        {/* Anuncios Section - Circle Widget */}
+        {activeSection === 'anuncios' && (
+          <div className="h-[calc(100vh-120px)]">
+            <iframe
+              src={getSpaceEmbedUrl(CIRCLE_SPACES.anuncios)}
+              className="w-full h-full border-0"
               allow="clipboard-write"
             />
           </div>
         )}
       </main>
+
+      {/* Auth Popup Indicator */}
+      {isAuthenticating && (
+        <div className="fixed bottom-4 right-4 bg-white rounded-lg shadow-lg p-4 flex items-center gap-3">
+          <div className="w-5 h-5 border-2 border-indigo-600 border-t-transparent rounded-full animate-spin"></div>
+          <span className="text-gray-600">Conectando con Circle...</span>
+        </div>
+      )}
     </div>
   );
 }
