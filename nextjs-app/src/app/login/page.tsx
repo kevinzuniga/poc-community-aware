@@ -4,8 +4,14 @@ import { useState, useEffect, Suspense } from 'react';
 import { useAuth } from '@/context/AuthContext';
 import { useRouter, useSearchParams } from 'next/navigation';
 
+const APP_VERSION = 'v1.1.0';
+
 function LoginContent() {
   const [activeTab, setActiveTab] = useState<'login' | 'register'>('login');
+
+  useEffect(() => {
+    console.log('[Login] App Version:', APP_VERSION);
+  }, []);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
   const { user, login, register, loading: authLoading } = useAuth();
@@ -222,8 +228,8 @@ function LoginContent() {
           </div>
 
           {/* Version */}
-          <p className="text-center text-white/60 text-xs mt-4">
-            v1.1.0
+          <p className="text-center text-white/80 text-sm mt-4 font-medium">
+            {APP_VERSION}
           </p>
         </div>
       </div>
