@@ -36,21 +36,8 @@ export function MainApp() {
     loadPosts();
     // Check if already authenticated with Circle
     setCircleAuthenticated(sessionStorage.getItem('circleAuthenticated') === 'true');
-    // Ensure user is linked to Circle
-    linkUserToCircle();
+    // Note: Don't auto-link here - registration should handle Circle member creation
   }, []);
-
-  async function linkUserToCircle() {
-    try {
-      const res = await fetch('/api/auth/link-circle', { method: 'POST' });
-      if (res.ok) {
-        const data = await res.json();
-        console.log('Circle link status:', data);
-      }
-    } catch (error) {
-      console.error('Error linking to Circle:', error);
-    }
-  }
 
   async function loadPosts() {
     try {

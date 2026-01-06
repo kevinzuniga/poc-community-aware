@@ -96,6 +96,8 @@ export function getCookieInjectionUrl(accessToken: string, returnUrl?: string) {
  * Crear un nuevo miembro en Circle
  */
 export async function createMember({ email, name }: { email: string; name: string }) {
+  console.log(`[Circle] Creating member with email: ${email}, name: ${name}`);
+
   const response = await circleRequest('/community_members', {
     method: 'POST',
     body: JSON.stringify({
@@ -106,23 +108,52 @@ export async function createMember({ email, name }: { email: string; name: strin
     }),
   });
 
-  return response.community_member || response;
+  const member = response.community_member || response;
+  console.log(`[Circle] Created member:`, { id: member.id, email: member.email, name: member.name });
+
+  // Verify the created member has the correct email
+  if (member.email?.toLowerCase() !== email.toLowerCase()) {
+    console.error(`[Circle] WARNING: Created member email (${member.email}) doesn't match requested email (${email})`);
+  }
+
+  return member;
 }
 
 /**
- * Buscar miembro por email
+ * Buscar miembro por email - STRICT exact match only
  */
 export async function findMemberByEmail(email: string) {
   try {
+    console.log(`[Circle] Searching for member with exact email: ${email}`);
+
     const response = await circleRequest(
       `/community_members?community_id=${COMMUNITY_ID}&email=${encodeURIComponent(email)}`
     );
 
+    console.log(`[Circle] Search returned ${response.records?.length || 0} records`);
+
     if (response.records?.length > 0) {
-      return response.records.find((m: any) => m.email.toLowerCase() === email.toLowerCase()) || null;
+      // STRICT: Only return if email matches EXACTLY
+      const exactMatch = response.records.find(
+        (m: any) => m.email && m.email.toLowerCase() === email.toLowerCase()
+      );
+
+      if (exactMatch) {
+        console.log(`[Circle] Found exact match: id=${exactMatch.id}, email=${exactMatch.email}`);
+        return exactMatch;
+      } else {
+        console.log(`[Circle] No exact email match found among ${response.records.length} records`);
+        // Log what emails were returned for debugging
+        response.records.forEach((m: any) => {
+          console.log(`[Circle]   - Record: id=${m.id}, email=${m.email}`);
+        });
+      }
     }
+
+    console.log(`[Circle] No member found with email: ${email}`);
     return null;
   } catch (error: any) {
+    console.error(`[Circle] Error searching for member:`, error);
     if (error.status === 404) return null;
     throw error;
   }
