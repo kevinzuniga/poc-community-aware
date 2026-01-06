@@ -31,6 +31,7 @@ export function MainApp() {
   const [circleLoading, setCircleLoading] = useState(false);
   const [circleAuthenticated, setCircleAuthenticated] = useState(false);
   const [currentCirclePath, setCurrentCirclePath] = useState('');
+  const [circlePendingActivation, setCirclePendingActivation] = useState(false);
 
   useEffect(() => {
     loadPosts();
@@ -53,6 +54,7 @@ export function MainApp() {
 
   async function initCircleWebview(path = '') {
     setCircleLoading(true);
+    setCirclePendingActivation(false);
 
     // Add embed parameter to hide sidebar
     const pathWithEmbed = path ? `${path}?hide_community_sidebar=true` : '?hide_community_sidebar=true';
@@ -61,13 +63,22 @@ export function MainApp() {
       // Always try to get fresh auth URL to ensure user is authenticated
       const res = await fetch(`/api/circle/auth-url?return_path=${encodeURIComponent(pathWithEmbed)}`);
 
+      const data = await res.json();
+
+      // Check for inactive member error
+      if (data.code === 'MEMBER_INACTIVE') {
+        console.log('Circle member pending activation');
+        setCircleLoading(false);
+        setCirclePendingActivation(true);
+        return;
+      }
+
       if (!res.ok) {
         console.log('Auth URL failed, loading directly');
         loadCircleDirectly(path);
         return;
       }
 
-      const data = await res.json();
       const { authUrl, debug } = data;
       console.log('Got auth URL, loading in iframe');
       console.log('Auth URL:', authUrl);
@@ -298,9 +309,31 @@ export function MainApp() {
                 <p className="text-gray-500">Conectando con Circle...</p>
               </div>
             )}
+            {circlePendingActivation && (
+              <div className="flex flex-col items-center justify-center h-full bg-gradient-to-br from-amber-50 to-orange-50">
+                <div className="bg-white rounded-2xl shadow-lg p-8 max-w-md text-center">
+                  <div className="text-6xl mb-4">📧</div>
+                  <h2 className="text-2xl font-bold text-gray-800 mb-4">
+                    Activa tu cuenta de Circle
+                  </h2>
+                  <p className="text-gray-600 mb-6">
+                    Para acceder a la comunidad, revisa tu email y haz clic en el enlace de invitacion de Circle.
+                  </p>
+                  <div className="bg-amber-100 rounded-lg p-4 text-amber-800 text-sm mb-6">
+                    <strong>Nota:</strong> El email puede tardar unos minutos en llegar. Revisa tu carpeta de spam si no lo ves.
+                  </div>
+                  <button
+                    onClick={() => initCircleWebview(currentCirclePath)}
+                    className="px-6 py-3 bg-indigo-600 text-white rounded-xl font-semibold hover:bg-indigo-700 transition-colors"
+                  >
+                    Ya active mi cuenta - Reintentar
+                  </button>
+                </div>
+              </div>
+            )}
             <iframe
               id="circle-webview"
-              className={`w-full h-full border-0 ${circleLoading ? 'hidden' : ''}`}
+              className={`w-full h-full border-0 ${circleLoading || circlePendingActivation ? 'hidden' : ''}`}
               allow="clipboard-write"
             />
           </div>

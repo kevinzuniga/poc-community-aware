@@ -49,6 +49,22 @@ export async function GET(request: NextRequest) {
     });
   } catch (error: any) {
     console.error('Error getting auth URL:', error);
+
+    // Check if it's an inactive member error
+    const errorMessage = error.message || error.toString();
+    const isInactiveError = errorMessage.includes('inactive') ||
+                           errorMessage.includes('must accept') ||
+                           errorMessage.includes('not active');
+
+    if (isInactiveError) {
+      return NextResponse.json({
+        error: 'Circle account pending activation',
+        code: 'MEMBER_INACTIVE',
+        message: 'Tu cuenta de Circle está pendiente de activación. Revisa tu email y haz clic en el enlace de invitación de Circle.',
+        memberId: user.circleMemberId
+      }, { status: 403 });
+    }
+
     return NextResponse.json(
       { error: 'Failed to generate authentication URL' },
       { status: 500 }
