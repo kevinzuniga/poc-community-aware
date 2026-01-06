@@ -95,18 +95,13 @@ export function getCookieInjectionUrl(accessToken: string, returnUrl?: string) {
 /**
  * Crear un nuevo miembro en Circle
  *
- * IMPORTANTE: No usamos skip_invitation porque:
- * - Circle crea miembros con active=false siempre
- * - El Headless SDK requiere miembros activos para generar tokens
- * - Sin skip_invitation, Circle envía un email de invitación
- * - Cuando el usuario hace clic en el email, se activa automáticamente
- * - Después de eso, el auto-login funciona seamlessly
- *
- * Para personalizar el email: Circle Admin > Settings > Emails
+ * Usamos skip_invitation=true para no enviar emails.
+ * El miembro puede quedar inactivo, pero intentaremos
+ * autenticarlo via nuestro sistema propio.
  */
 export async function createMember({ email, name }: { email: string; name: string }) {
   console.log(`[Circle] Creating member with email: ${email}, name: ${name}`);
-  console.log(`[Circle] An invitation email will be sent - user must click to activate`);
+  console.log(`[Circle] Using skip_invitation=true to avoid sending email`);
 
   const response = await circleRequest('/community_members', {
     method: 'POST',
@@ -114,7 +109,7 @@ export async function createMember({ email, name }: { email: string; name: strin
       community_id: parseInt(COMMUNITY_ID),
       email,
       name: name || email.split('@')[0],
-      // NO skip_invitation - let Circle send activation email
+      skip_invitation: true,  // Don't send email, we'll handle auth ourselves
     }),
   });
 
@@ -124,7 +119,6 @@ export async function createMember({ email, name }: { email: string; name: strin
     email: member.email,
     name: member.name,
     active: member.active,
-    message: 'User must click invitation email to activate'
   });
 
   // Verify the created member has the correct email

@@ -26,7 +26,12 @@
       "Bash(git push:*)",
       "Bash(dig:*)",
       "WebFetch(domain:api-v1.circle.so)",
-      "Bash(git restore:*)"
+      "Bash(git restore:*)",
+      "Bash(find:*)",
+      "WebFetch(domain:www.jamelhammoud.com)",
+      "Bash(wc:*)",
+      "Bash(git checkout:*)",
+      "Bash(git merge:*)"
     ],
     "deny": [],
     "ask": []
