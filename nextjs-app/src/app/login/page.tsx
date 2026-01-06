@@ -220,6 +220,11 @@ function LoginContent() {
               </form>
             )}
           </div>
+
+          {/* Version */}
+          <p className="text-center text-white/60 text-xs mt-4">
+            v1.1.0
+          </p>
         </div>
       </div>
     </div>
