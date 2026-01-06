@@ -25,12 +25,10 @@ export async function GET(request: NextRequest) {
 
     const tokenData = await getMemberToken(user.circleMemberId);
 
-    // Build return URL if path provided
-    let returnUrl: string | undefined;
-    if (returnPath) {
-      const config = getConfig();
-      returnUrl = `https://${config.domain}${returnPath}`;
-    }
+    // Build return URL - go back to our app after Circle sets cookies
+    // Circle will redirect to this URL after setting session cookies
+    const appDomain = process.env.NEXT_PUBLIC_APP_DOMAIN || 'app.thenextlevelplay.co';
+    const returnUrl = `https://${appDomain}/?circleAuth=success`;
 
     const authUrl = getCookieInjectionUrl(tokenData.accessToken, returnUrl);
 

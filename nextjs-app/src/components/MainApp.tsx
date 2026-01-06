@@ -55,7 +55,28 @@ export function MainApp() {
     loadPosts();
     // Check if already authenticated with Circle
     setCircleAuthenticated(sessionStorage.getItem('circleAuthenticated') === 'true');
-    // Note: Don't auto-link here - registration should handle Circle member creation
+
+    // Check if we're returning from Circle auth redirect
+    const urlParams = new URLSearchParams(window.location.search);
+    if (urlParams.get('circleAuth') === 'success') {
+      console.log('Returned from Circle auth - loading Comunidad');
+      // Clean URL
+      window.history.replaceState({}, '', window.location.pathname);
+      // Get stored path or default to comunidad
+      const returnPath = sessionStorage.getItem('circleReturnPath') || `/c/${CIRCLE_SPACES.comunidad}`;
+      sessionStorage.removeItem('circleReturnPath');
+      // Navigate to comunidad section
+      setActiveSection('comunidad');
+      // Load Circle directly (cookies are now set)
+      setTimeout(() => {
+        const iframe = document.getElementById('circle-webview') as HTMLIFrameElement;
+        if (iframe) {
+          const pathWithEmbed = returnPath + (returnPath.includes('?') ? '&' : '?') + 'hide_community_sidebar=true';
+          iframe.src = `https://${CIRCLE_DOMAIN}${pathWithEmbed}`;
+          iframe.onload = () => setCircleLoading(false);
+        }
+      }, 100);
+    }
   }, []);
 
   async function loadPosts() {
@@ -77,10 +98,12 @@ export function MainApp() {
     // Add embed parameter to hide sidebar
     const pathWithEmbed = path ? `${path}?hide_community_sidebar=true` : '?hide_community_sidebar=true';
 
-    try {
-      // Always try to get fresh auth URL to ensure user is authenticated
-      const res = await fetch(`/api/circle/auth-url?return_path=${encodeURIComponent(pathWithEmbed)}`);
+    // Check if we already authenticated with Circle (cookies are set)
+    const alreadyAuthenticated = sessionStorage.getItem('circleAuthenticated') === 'true';
 
+    try {
+      // Get auth URL
+      const res = await fetch(`/api/circle/auth-url?return_path=${encodeURIComponent(pathWithEmbed)}`);
       const data = await res.json();
 
       // Check for inactive member error
@@ -98,18 +121,30 @@ export function MainApp() {
       }
 
       const { authUrl, debug } = data;
-      console.log('Got auth URL, loading in iframe');
-      console.log('Auth URL:', authUrl);
+      console.log('Got auth URL');
       console.log('Debug info:', debug);
 
-      // Load auth URL directly in iframe (same TLD = cookies work)
+      // If not yet authenticated, redirect to auth URL in main window
+      // This sets the cookies properly (iframe blocks third-party cookies)
+      if (!alreadyAuthenticated) {
+        console.log('First time - redirecting to Circle auth URL');
+        // Store where we want to go after auth
+        sessionStorage.setItem('circleReturnPath', path);
+        sessionStorage.setItem('circleAuthenticated', 'true');
+        // Redirect to auth URL - Circle will set cookies and redirect back
+        window.location.href = authUrl;
+        return;
+      }
+
+      // Already authenticated - load Circle directly in iframe
+      console.log('Already authenticated, loading Circle in iframe');
       const iframe = document.getElementById('circle-webview') as HTMLIFrameElement;
       if (iframe) {
-        iframe.src = authUrl;
+        const config = { domain: CIRCLE_DOMAIN };
+        const circleUrl = `https://${config.domain}${pathWithEmbed}`;
+        iframe.src = circleUrl;
         iframe.onload = () => {
           setCircleLoading(false);
-          setCircleAuthenticated(true);
-          sessionStorage.setItem('circleAuthenticated', 'true');
         };
       }
     } catch (error) {
