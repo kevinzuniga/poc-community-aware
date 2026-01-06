@@ -32,6 +32,24 @@ export function MainApp() {
   const [circleAuthenticated, setCircleAuthenticated] = useState(false);
   const [currentCirclePath, setCurrentCirclePath] = useState('');
   const [circlePendingActivation, setCirclePendingActivation] = useState(false);
+  const [fixingCircle, setFixingCircle] = useState(false);
+
+  async function fixCircleLink() {
+    setFixingCircle(true);
+    try {
+      const res = await fetch('/api/auth/fix-circle-link', { method: 'POST' });
+      const data = await res.json();
+      if (data.success) {
+        alert(`Circle link fixed! Old ID: ${data.oldCircleMemberId} → New ID: ${data.newCircleMemberId}. Reloading...`);
+        window.location.reload();
+      } else {
+        alert('Error: ' + (data.error || 'Unknown error'));
+      }
+    } catch (error) {
+      alert('Error fixing Circle link');
+    }
+    setFixingCircle(false);
+  }
 
   useEffect(() => {
     loadPosts();
@@ -322,12 +340,21 @@ export function MainApp() {
                   <div className="bg-amber-100 rounded-lg p-4 text-amber-800 text-sm mb-6">
                     <strong>Nota:</strong> El email puede tardar unos minutos en llegar. Revisa tu carpeta de spam si no lo ves.
                   </div>
-                  <button
-                    onClick={() => initCircleWebview(currentCirclePath)}
-                    className="px-6 py-3 bg-indigo-600 text-white rounded-xl font-semibold hover:bg-indigo-700 transition-colors"
-                  >
-                    Ya active mi cuenta - Reintentar
-                  </button>
+                  <div className="flex flex-col gap-3">
+                    <button
+                      onClick={() => initCircleWebview(currentCirclePath)}
+                      className="px-6 py-3 bg-indigo-600 text-white rounded-xl font-semibold hover:bg-indigo-700 transition-colors"
+                    >
+                      Ya active mi cuenta - Reintentar
+                    </button>
+                    <button
+                      onClick={fixCircleLink}
+                      disabled={fixingCircle}
+                      className="px-6 py-3 bg-gray-200 text-gray-700 rounded-xl font-medium hover:bg-gray-300 transition-colors text-sm"
+                    >
+                      {fixingCircle ? 'Arreglando...' : 'Arreglar conexion con Circle'}
+                    </button>
+                  </div>
                 </div>
               </div>
             )}

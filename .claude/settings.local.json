@@ -24,7 +24,9 @@
       "Bash(npm run dev:*)",
       "Bash(npm run build:*)",
       "Bash(git push:*)",
-      "Bash(dig:*)"
+      "Bash(dig:*)",
+      "WebFetch(domain:api-v1.circle.so)",
+      "Bash(git restore:*)"
     ],
     "deny": [],
     "ask": []
