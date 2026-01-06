@@ -25,10 +25,11 @@ export async function GET(request: NextRequest) {
 
     const tokenData = await getMemberToken(user.circleMemberId);
 
-    // Build return URL - go back to our app after Circle sets cookies
-    // Circle will redirect to this URL after setting session cookies
-    const appDomain = process.env.NEXT_PUBLIC_APP_DOMAIN || 'app.thenextlevelplay.co';
-    const returnUrl = `https://${appDomain}/?circleAuth=success`;
+    // Circle only allows return_to on same domain, so we redirect to Circle first
+    // then handle the redirect back to our app via JavaScript in MainApp
+    const config = getConfig();
+    const circlePath = returnPath || '/c/space-aware';
+    const returnUrl = `https://${config.domain}${circlePath}`;
 
     const authUrl = getCookieInjectionUrl(tokenData.accessToken, returnUrl);
 

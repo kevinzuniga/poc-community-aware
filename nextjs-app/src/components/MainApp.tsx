@@ -55,28 +55,6 @@ export function MainApp() {
     loadPosts();
     // Check if already authenticated with Circle
     setCircleAuthenticated(sessionStorage.getItem('circleAuthenticated') === 'true');
-
-    // Check if we're returning from Circle auth redirect
-    const urlParams = new URLSearchParams(window.location.search);
-    if (urlParams.get('circleAuth') === 'success') {
-      console.log('Returned from Circle auth - loading Comunidad');
-      // Clean URL
-      window.history.replaceState({}, '', window.location.pathname);
-      // Get stored path or default to comunidad
-      const returnPath = sessionStorage.getItem('circleReturnPath') || `/c/${CIRCLE_SPACES.comunidad}`;
-      sessionStorage.removeItem('circleReturnPath');
-      // Navigate to comunidad section
-      setActiveSection('comunidad');
-      // Load Circle directly (cookies are now set)
-      setTimeout(() => {
-        const iframe = document.getElementById('circle-webview') as HTMLIFrameElement;
-        if (iframe) {
-          const pathWithEmbed = returnPath + (returnPath.includes('?') ? '&' : '?') + 'hide_community_sidebar=true';
-          iframe.src = `https://${CIRCLE_DOMAIN}${pathWithEmbed}`;
-          iframe.onload = () => setCircleLoading(false);
-        }
-      }, 100);
-    }
   }, []);
 
   async function loadPosts() {
@@ -124,29 +102,40 @@ export function MainApp() {
       console.log('Got auth URL');
       console.log('Debug info:', debug);
 
-      // If not yet authenticated, redirect to auth URL in main window
-      // This sets the cookies properly (iframe blocks third-party cookies)
+      // If not yet authenticated, open popup to set cookies
       if (!alreadyAuthenticated) {
-        console.log('First time - redirecting to Circle auth URL');
-        // Store where we want to go after auth
-        sessionStorage.setItem('circleReturnPath', path);
-        sessionStorage.setItem('circleAuthenticated', 'true');
-        // Redirect to auth URL - Circle will set cookies and redirect back
-        window.location.href = authUrl;
+        console.log('First time - opening popup for Circle auth');
+
+        // Open auth URL in popup window
+        const popup = window.open(authUrl, 'circleAuth', 'width=600,height=700');
+
+        // Check when popup closes or after timeout
+        const checkPopup = setInterval(() => {
+          if (!popup || popup.closed) {
+            clearInterval(checkPopup);
+            console.log('Popup closed - cookies should be set');
+            sessionStorage.setItem('circleAuthenticated', 'true');
+            // Now load Circle in iframe
+            loadCircleDirectly(path);
+          }
+        }, 500);
+
+        // Timeout after 60 seconds
+        setTimeout(() => {
+          clearInterval(checkPopup);
+          if (popup && !popup.closed) {
+            popup.close();
+          }
+          sessionStorage.setItem('circleAuthenticated', 'true');
+          loadCircleDirectly(path);
+        }, 60000);
+
         return;
       }
 
       // Already authenticated - load Circle directly in iframe
       console.log('Already authenticated, loading Circle in iframe');
-      const iframe = document.getElementById('circle-webview') as HTMLIFrameElement;
-      if (iframe) {
-        const config = { domain: CIRCLE_DOMAIN };
-        const circleUrl = `https://${config.domain}${pathWithEmbed}`;
-        iframe.src = circleUrl;
-        iframe.onload = () => {
-          setCircleLoading(false);
-        };
-      }
+      loadCircleDirectly(path);
     } catch (error) {
       console.error('Error initializing Circle:', error);
       loadCircleDirectly(path);
