@@ -1,7 +1,6 @@
 'use client';
 
 import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
-import { registerGetTokenFunction } from '@circleco/headless-client-sdk';
 
 interface CircleContextType {
   isAuthenticated: boolean;
@@ -42,10 +41,6 @@ export function CircleProvider({ children }: { children: React.ReactNode }) {
       // Store token
       setAccessToken(data.accessToken);
       setMemberId(data.memberId);
-
-      // Register token function with Circle SDK
-      registerGetTokenFunction(() => data.accessToken);
-
       setIsAuthenticated(true);
       console.log('[Circle] Authenticated with member ID:', data.memberId);
     } catch (err) {
