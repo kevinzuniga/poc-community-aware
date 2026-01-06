@@ -26,18 +26,29 @@ export async function POST(request: NextRequest) {
     // Create or find Circle member
     let circleMemberId: number | undefined;
     try {
+      console.log(`[Register] Searching for Circle member with email: ${email}`);
       let circleMember = await findMemberByEmail(email);
+      console.log(`[Register] findMemberByEmail result:`, circleMember);
 
       if (!circleMember) {
-        console.log(`Creating Circle member for ${email}`);
+        console.log(`[Register] No member found, creating new Circle member for ${email}`);
         circleMember = await createMember({ email, name: name || email.split('@')[0] });
+        console.log(`[Register] createMember result:`, circleMember);
       }
 
-      circleMemberId = circleMember.id;
-      console.log(`Circle member ID: ${circleMemberId}`);
-    } catch (error) {
-      console.error('Error with Circle member:', error);
-      // Continue without Circle integration
+      if (circleMember && circleMember.id) {
+        circleMemberId = circleMember.id;
+        console.log(`[Register] Circle member ID set to: ${circleMemberId}`);
+      } else {
+        console.error(`[Register] ERROR: circleMember exists but has no ID:`, circleMember);
+      }
+    } catch (error: any) {
+      console.error('[Register] ERROR creating/finding Circle member:', error.message || error);
+      // Don't continue without Circle - this is critical
+      return NextResponse.json(
+        { error: `Failed to create Circle member: ${error.message}` },
+        { status: 500 }
+      );
     }
 
     // Hash password and create user
