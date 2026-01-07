@@ -50,7 +50,45 @@ async function circleRequest(endpoint: string, options: RequestInit = {}) {
 }
 
 /**
- * Obtener member access token usando Headless SDK
+ * Obtener member access token usando EMAIL directamente
+ * Esto puede crear/activar al miembro automáticamente
+ */
+export async function getMemberTokenByEmail(email: string) {
+  console.log(`[Headless] Getting token for email: ${email}`);
+
+  try {
+    const response = await fetch('https://app.circle.so/api/v1/headless/auth_token', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${HEADLESS_TOKEN}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ email }),
+    });
+
+    const data = await response.json();
+
+    if (!response.ok) {
+      console.error(`[Headless] Error response:`, data);
+      throw new Error(data.message || `Auth failed: ${response.status}`);
+    }
+
+    console.log(`[Headless] Token obtained for email ${email}, member_id: ${data.community_member_id}`);
+
+    return {
+      accessToken: data.access_token,
+      refreshToken: data.refresh_token,
+      expiresAt: new Date(data.access_token_expires_at).getTime() - (5 * 60 * 1000),
+      communityMemberId: data.community_member_id,
+    };
+  } catch (error) {
+    console.error(`[Headless] Error getting token by email:`, error);
+    throw error;
+  }
+}
+
+/**
+ * Obtener member access token usando Headless SDK (por member ID)
  */
 export async function getMemberToken(circleMemberId: number) {
   // Verificar cache

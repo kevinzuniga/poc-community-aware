@@ -1,10 +1,11 @@
 import { NextResponse } from 'next/server';
 import { getCurrentUser } from '@/lib/auth';
-import { getMemberToken } from '@/lib/circle';
+import { getMemberTokenByEmail } from '@/lib/circle';
+import { updateUserCircleMemberId } from '@/lib/db';
 
 /**
  * Get Circle member token for client-side SDK
- * This token allows the client to make authenticated requests to Circle's API
+ * Uses EMAIL to get token - this may auto-create/activate the member
  */
 export async function GET() {
   const user = await getCurrentUser();
@@ -16,23 +17,25 @@ export async function GET() {
     );
   }
 
-  if (!user.circleMemberId) {
-    return NextResponse.json(
-      { error: 'User is not linked to Circle' },
-      { status: 400 }
-    );
-  }
-
   try {
-    const tokenData = await getMemberToken(user.circleMemberId);
+    // Use email to get token - this is the key!
+    // Circle's headless auth_token endpoint can create/activate members by email
+    console.log(`[member-token] Getting token for user ${user.email}`);
+    const tokenData = await getMemberTokenByEmail(user.email);
+
+    // Update our DB with the Circle member ID if we didn't have it
+    if (!user.circleMemberId && tokenData.communityMemberId) {
+      console.log(`[member-token] Updating user ${user.id} with Circle member ID ${tokenData.communityMemberId}`);
+      await updateUserCircleMemberId(user.id, tokenData.communityMemberId);
+    }
 
     return NextResponse.json({
       accessToken: tokenData.accessToken,
       expiresAt: tokenData.expiresAt,
-      memberId: user.circleMemberId,
+      memberId: tokenData.communityMemberId,
     });
   } catch (error: any) {
-    console.error('Error getting member token:', error);
+    console.error('[member-token] Error getting member token:', error);
 
     // Check if it's an inactive member error
     const errorMessage = error.message || error.toString();
@@ -48,7 +51,7 @@ export async function GET() {
     }
 
     return NextResponse.json(
-      { error: 'Failed to get member token' },
+      { error: 'Failed to get member token', details: errorMessage },
       { status: 500 }
     );
   }
