@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getCurrentUser } from '@/lib/auth';
-import { getMemberToken, getCookieInjectionUrl, getConfig } from '@/lib/circle';
+import { getMemberTokenByEmail, getCookieInjectionUrl, getConfig } from '@/lib/circle';
+import { updateUserCircleMemberId } from '@/lib/db';
 
 export async function GET(request: NextRequest) {
   const user = await getCurrentUser();
@@ -12,18 +13,19 @@ export async function GET(request: NextRequest) {
     );
   }
 
-  if (!user.circleMemberId) {
-    return NextResponse.json(
-      { error: 'User is not linked to Circle' },
-      { status: 400 }
-    );
-  }
-
   try {
     const { searchParams } = new URL(request.url);
     const returnPath = searchParams.get('return_path');
 
-    const tokenData = await getMemberToken(user.circleMemberId);
+    // Use email to get token - this auto-creates/activates member in Circle
+    console.log(`[Circle Auth] Getting token for user ${user.email}`);
+    const tokenData = await getMemberTokenByEmail(user.email);
+
+    // Update our DB with Circle member ID if we didn't have it
+    if (!user.circleMemberId && tokenData.communityMemberId) {
+      console.log(`[Circle Auth] Saving Circle member ID ${tokenData.communityMemberId} for user ${user.id}`);
+      await updateUserCircleMemberId(user.id, tokenData.communityMemberId);
+    }
 
     // Circle only allows return_to on same domain, so we redirect to Circle first
     // then handle the redirect back to our app via JavaScript in MainApp
@@ -33,7 +35,7 @@ export async function GET(request: NextRequest) {
 
     const authUrl = getCookieInjectionUrl(tokenData.accessToken, returnUrl);
 
-    console.log(`[Circle Auth] Generated auth URL for member ${user.circleMemberId}`);
+    console.log(`[Circle Auth] Generated auth URL for member ${tokenData.communityMemberId}`);
     console.log(`[Circle Auth] Auth URL: ${authUrl}`);
     console.log(`[Circle Auth] Token expires at: ${new Date(tokenData.expiresAt).toISOString()}`);
 
@@ -41,7 +43,8 @@ export async function GET(request: NextRequest) {
       authUrl,
       expiresAt: tokenData.expiresAt,
       debug: {
-        memberId: user.circleMemberId,
+        memberId: tokenData.communityMemberId,
+        email: user.email,
         domain: getConfig().domain,
         tokenPreview: tokenData.accessToken.substring(0, 20) + '...'
       }
@@ -59,8 +62,8 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({
         error: 'Circle account pending activation',
         code: 'MEMBER_INACTIVE',
-        message: 'Tu cuenta de Circle está pendiente de activación. Revisa tu email y haz clic en el enlace de invitación de Circle.',
-        memberId: user.circleMemberId
+        message: 'Tu cuenta de Circle está pendiente de activación.',
+        email: user.email
       }, { status: 403 });
     }
 
