@@ -131,15 +131,10 @@ export function getCookieInjectionUrl(accessToken: string, returnUrl?: string) {
 }
 
 /**
- * Crear un nuevo miembro en Circle
- *
- * Usamos skip_invitation=true para no enviar emails.
- * El miembro puede quedar inactivo, pero intentaremos
- * autenticarlo via nuestro sistema propio.
+ * Crear un nuevo miembro en Circle y agregarlo a los espacios
  */
 export async function createMember({ email, name }: { email: string; name: string }) {
   console.log(`[Circle] Creating member with email: ${email}, name: ${name}`);
-  console.log(`[Circle] Using skip_invitation=true to avoid sending email`);
 
   const response = await circleRequest('/community_members', {
     method: 'POST',
@@ -147,7 +142,7 @@ export async function createMember({ email, name }: { email: string; name: strin
       community_id: parseInt(COMMUNITY_ID),
       email,
       name: name || email.split('@')[0],
-      skip_invitation: true,  // Don't send email, we'll handle auth ourselves
+      skip_invitation: true,
     }),
   });
 
@@ -159,12 +154,38 @@ export async function createMember({ email, name }: { email: string; name: strin
     active: member.active,
   });
 
-  // Verify the created member has the correct email
-  if (member.email?.toLowerCase() !== email.toLowerCase()) {
-    console.error(`[Circle] WARNING: Created member email (${member.email}) doesn't match requested email (${email})`);
-  }
+  // Add member to all spaces automatically
+  await addMemberToAllSpaces(email);
 
   return member;
+}
+
+/**
+ * Add member to all configured spaces
+ */
+export async function addMemberToAllSpaces(email: string) {
+  const spaceIds = [SPACE_IDS.curso, SPACE_IDS.comunidad, SPACE_IDS.anuncios];
+
+  console.log(`[Circle] Adding ${email} to ${spaceIds.length} spaces...`);
+
+  for (const spaceId of spaceIds) {
+    try {
+      await circleRequest('/space_members', {
+        method: 'POST',
+        body: JSON.stringify({
+          community_id: parseInt(COMMUNITY_ID),
+          space_id: parseInt(spaceId),
+          email,
+        }),
+      });
+      console.log(`[Circle] Added to space ${spaceId}`);
+    } catch (error: any) {
+      // Ignore if already a member
+      if (!error.message?.includes('already')) {
+        console.error(`[Circle] Error adding to space ${spaceId}:`, error.message);
+      }
+    }
+  }
 }
 
 /**

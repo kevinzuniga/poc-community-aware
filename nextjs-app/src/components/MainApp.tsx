@@ -44,23 +44,37 @@ export function MainApp() {
       const data = await res.json();
 
       if (data.authUrl) {
-        // Open popup for Circle auth
-        const popup = window.open(data.authUrl, 'circleAuth', 'width=600,height=700');
+        // Use hidden iframe instead of popup for silent cookie injection
+        const iframe = document.createElement('iframe');
+        iframe.style.display = 'none';
+        iframe.src = data.authUrl;
 
-        const checkPopup = setInterval(() => {
-          if (!popup || popup.closed) {
-            clearInterval(checkPopup);
+        iframe.onload = () => {
+          // Give Circle a moment to set cookies
+          setTimeout(() => {
+            document.body.removeChild(iframe);
             sessionStorage.setItem('circleAuthenticated', 'true');
             setIsAuthenticating(false);
-          }
-        }, 500);
+            console.log('[Circle] Authentication complete via hidden iframe');
+          }, 2000);
+        };
 
-        setTimeout(() => {
-          clearInterval(checkPopup);
-          if (popup && !popup.closed) popup.close();
+        iframe.onerror = () => {
+          document.body.removeChild(iframe);
           sessionStorage.setItem('circleAuthenticated', 'true');
           setIsAuthenticating(false);
-        }, 60000);
+        };
+
+        document.body.appendChild(iframe);
+
+        // Timeout fallback
+        setTimeout(() => {
+          if (document.body.contains(iframe)) {
+            document.body.removeChild(iframe);
+          }
+          sessionStorage.setItem('circleAuthenticated', 'true');
+          setIsAuthenticating(false);
+        }, 10000);
       }
     } catch (error) {
       console.error('Auth error:', error);
