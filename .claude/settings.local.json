@@ -31,7 +31,10 @@
       "WebFetch(domain:www.jamelhammoud.com)",
       "Bash(wc:*)",
       "Bash(git checkout:*)",
-      "Bash(git merge:*)"
+      "Bash(git merge:*)",
+      "WebFetch(domain:pipedream.com)",
+      "WebFetch(domain:github.com)",
+      "WebFetch(domain:sellcoursesonline.com)"
     ],
     "deny": [],
     "ask": []

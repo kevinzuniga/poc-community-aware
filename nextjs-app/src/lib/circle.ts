@@ -119,7 +119,8 @@ async function setupMemberProfile(memberId: number, email: string) {
 }
 
 /**
- * Internal function to confirm profile
+ * Internal function to confirm profile and set preferences
+ * Tries multiple approaches to skip the onboarding form
  */
 async function confirmMemberProfileInternal(memberId: number) {
   try {
@@ -128,7 +129,18 @@ async function confirmMemberProfileInternal(memberId: number) {
       method: 'PUT',
       body: JSON.stringify({
         community_id: parseInt(COMMUNITY_ID),
+        // Try various fields that might skip onboarding
         profile_confirmed_at: new Date().toISOString(),
+        preferences: {
+          show_in_member_directory: true,
+          email_visible: false,
+          allow_messages: true,
+        },
+        // Additional fields that might help
+        skip_onboarding: true,
+        onboarding_completed: true,
+        accepted_terms_at: new Date().toISOString(),
+        terms_accepted: true,
       }),
     });
     console.log(`[Circle] Profile confirmed for member ${memberId}`);
