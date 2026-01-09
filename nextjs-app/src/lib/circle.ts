@@ -136,13 +136,21 @@ export function getCookieInjectionUrl(accessToken: string, returnUrl?: string) {
 export async function createMember({ email, name }: { email: string; name: string }) {
   console.log(`[Circle] Creating member with email: ${email}, name: ${name}`);
 
+  // Split name into first_name and last_name
+  const nameParts = (name || email.split('@')[0]).split(' ');
+  const firstName = nameParts[0] || 'Usuario';
+  const lastName = nameParts.slice(1).join(' ') || '';
+
   const response = await circleRequest('/community_members', {
     method: 'POST',
     body: JSON.stringify({
       community_id: parseInt(COMMUNITY_ID),
       email,
       name: name || email.split('@')[0],
+      first_name: firstName,
+      last_name: lastName,
       skip_invitation: true,
+      skip_onboarding: true,  // Try to skip onboarding
     }),
   });
 

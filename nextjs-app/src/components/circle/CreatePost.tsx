@@ -101,7 +101,7 @@ export function CreatePost({ spaceId, onPostCreated }: CreatePostProps) {
               value={title}
               onChange={e => setTitle(e.target.value)}
               placeholder="Titulo del post"
-              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent text-gray-900 bg-white"
             />
           </div>
 
@@ -114,7 +114,7 @@ export function CreatePost({ spaceId, onPostCreated }: CreatePostProps) {
               onChange={e => setContent(e.target.value)}
               placeholder="Escribe tu post..."
               rows={5}
-              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent resize-none"
+              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent resize-none text-gray-900 bg-white"
               required
             />
           </div>
