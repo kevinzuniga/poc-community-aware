@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { useAuth } from '@/context/AuthContext';
+import { CreatePost } from './circle/CreatePost';
 
 const CIRCLE_DOMAIN = process.env.NEXT_PUBLIC_CIRCLE_DOMAIN || 'fuxion-aware.circle.so';
 
@@ -26,6 +27,7 @@ export function MainApp() {
   const [showComments, setShowComments] = useState(false);
   const [circleAuthUrl, setCircleAuthUrl] = useState<string | null>(null);
   const [isAuthenticating, setIsAuthenticating] = useState(false);
+  const [iframeKey, setIframeKey] = useState(0); // For forcing iframe reload
 
   useEffect(() => {
     loadPosts();
@@ -300,10 +302,22 @@ export function MainApp() {
 
         {/* Comunidad Section - Circle Widget */}
         {activeSection === 'comunidad' && (
-          <div className="h-[calc(100vh-120px)]">
+          <div className="h-[calc(100vh-120px)] flex flex-col">
+            {/* Header with Create Post button */}
+            <div className="bg-white border-b px-4 py-3 flex items-center justify-between">
+              <h2 className="text-lg font-semibold text-gray-800">Comunidad</h2>
+              <CreatePost
+                spaceId={process.env.NEXT_PUBLIC_CIRCLE_SPACE_COMUNIDAD || '2369738'}
+                onPostCreated={() => {
+                  // Reload iframe to show new post
+                  setIframeKey(prev => prev + 1);
+                }}
+              />
+            </div>
             <iframe
+              key={iframeKey}
               src={getSpaceEmbedUrl(CIRCLE_SPACES.comunidad)}
-              className="w-full h-full border-0"
+              className="w-full flex-1 border-0"
               allow="clipboard-write"
             />
           </div>

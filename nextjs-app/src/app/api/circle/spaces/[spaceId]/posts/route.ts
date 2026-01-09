@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getCurrentUser } from '@/lib/auth';
-import { getMemberToken } from '@/lib/circle';
+import { getMemberTokenByEmail } from '@/lib/circle';
 
 const CIRCLE_API_URL = 'https://app.circle.so/api/headless/v1';
 
@@ -9,7 +9,7 @@ export async function GET(
   { params }: { params: Promise<{ spaceId: string }> }
 ) {
   const user = await getCurrentUser();
-  if (!user?.circleMemberId) {
+  if (!user) {
     return NextResponse.json({ error: 'Not authenticated' }, { status: 401 });
   }
 
@@ -19,7 +19,7 @@ export async function GET(
   const perPage = searchParams.get('per_page') || '10';
 
   try {
-    const tokenData = await getMemberToken(user.circleMemberId);
+    const tokenData = await getMemberTokenByEmail(user.email);
 
     const response = await fetch(
       `${CIRCLE_API_URL}/spaces/${spaceId}/posts?page=${page}&per_page=${perPage}`,
@@ -50,7 +50,7 @@ export async function POST(
   { params }: { params: Promise<{ spaceId: string }> }
 ) {
   const user = await getCurrentUser();
-  if (!user?.circleMemberId) {
+  if (!user) {
     return NextResponse.json({ error: 'Not authenticated' }, { status: 401 });
   }
 
@@ -58,7 +58,7 @@ export async function POST(
   const body = await request.json();
 
   try {
-    const tokenData = await getMemberToken(user.circleMemberId);
+    const tokenData = await getMemberTokenByEmail(user.email);
 
     const response = await fetch(
       `${CIRCLE_API_URL}/spaces/${spaceId}/posts`,
