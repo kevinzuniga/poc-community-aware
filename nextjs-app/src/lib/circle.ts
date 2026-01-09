@@ -162,10 +162,35 @@ export async function createMember({ email, name }: { email: string; name: strin
     active: member.active,
   });
 
+  // Confirm profile to skip onboarding form
+  if (member.id) {
+    await confirmMemberProfile(member.id);
+  }
+
   // Add member to all spaces automatically
   await addMemberToAllSpaces(email);
 
   return member;
+}
+
+/**
+ * Confirm member profile to skip onboarding form
+ */
+async function confirmMemberProfile(memberId: number) {
+  try {
+    console.log(`[Circle] Confirming profile for member ${memberId}`);
+    await circleRequest(`/community_members/${memberId}`, {
+      method: 'PUT',
+      body: JSON.stringify({
+        community_id: parseInt(COMMUNITY_ID),
+        profile_confirmed_at: new Date().toISOString(),
+      }),
+    });
+    console.log(`[Circle] Profile confirmed for member ${memberId}`);
+  } catch (error) {
+    console.error(`[Circle] Error confirming profile:`, error);
+    // Don't throw - this is not critical
+  }
 }
 
 /**
