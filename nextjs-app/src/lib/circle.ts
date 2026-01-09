@@ -75,15 +75,65 @@ export async function getMemberTokenByEmail(email: string) {
 
     console.log(`[Headless] Token obtained for email ${email}, member_id: ${data.community_member_id}`);
 
+    const memberId = data.community_member_id;
+
+    // Auto-confirm profile and add to spaces (runs in background, don't block)
+    setupMemberProfile(memberId, email).catch(err => {
+      console.error(`[Headless] Background setup error:`, err);
+    });
+
     return {
       accessToken: data.access_token,
       refreshToken: data.refresh_token,
       expiresAt: new Date(data.access_token_expires_at).getTime() - (5 * 60 * 1000),
-      communityMemberId: data.community_member_id,
+      communityMemberId: memberId,
     };
   } catch (error) {
     console.error(`[Headless] Error getting token by email:`, error);
     throw error;
+  }
+}
+
+// Cache to track which members have been setup
+const setupMemberCache = new Set<number>();
+
+/**
+ * Setup member profile - confirm profile and add to spaces
+ * Only runs once per member per server instance
+ */
+async function setupMemberProfile(memberId: number, email: string) {
+  if (setupMemberCache.has(memberId)) {
+    return; // Already setup
+  }
+
+  console.log(`[Circle] Setting up member ${memberId} (${email})`);
+
+  // Confirm profile to skip onboarding form
+  await confirmMemberProfileInternal(memberId);
+
+  // Add to all spaces
+  await addMemberToAllSpaces(email);
+
+  setupMemberCache.add(memberId);
+  console.log(`[Circle] Member ${memberId} setup complete`);
+}
+
+/**
+ * Internal function to confirm profile
+ */
+async function confirmMemberProfileInternal(memberId: number) {
+  try {
+    console.log(`[Circle] Confirming profile for member ${memberId}`);
+    await circleRequest(`/community_members/${memberId}`, {
+      method: 'PUT',
+      body: JSON.stringify({
+        community_id: parseInt(COMMUNITY_ID),
+        profile_confirmed_at: new Date().toISOString(),
+      }),
+    });
+    console.log(`[Circle] Profile confirmed for member ${memberId}`);
+  } catch (error) {
+    console.error(`[Circle] Error confirming profile:`, error);
   }
 }
 
@@ -164,33 +214,13 @@ export async function createMember({ email, name }: { email: string; name: strin
 
   // Confirm profile to skip onboarding form
   if (member.id) {
-    await confirmMemberProfile(member.id);
+    await confirmMemberProfileInternal(member.id);
   }
 
   // Add member to all spaces automatically
   await addMemberToAllSpaces(email);
 
   return member;
-}
-
-/**
- * Confirm member profile to skip onboarding form
- */
-async function confirmMemberProfile(memberId: number) {
-  try {
-    console.log(`[Circle] Confirming profile for member ${memberId}`);
-    await circleRequest(`/community_members/${memberId}`, {
-      method: 'PUT',
-      body: JSON.stringify({
-        community_id: parseInt(COMMUNITY_ID),
-        profile_confirmed_at: new Date().toISOString(),
-      }),
-    });
-    console.log(`[Circle] Profile confirmed for member ${memberId}`);
-  } catch (error) {
-    console.error(`[Circle] Error confirming profile:`, error);
-    // Don't throw - this is not critical
-  }
 }
 
 /**

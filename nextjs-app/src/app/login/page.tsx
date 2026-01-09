@@ -4,7 +4,7 @@ import { useState, useEffect, Suspense } from 'react';
 import { useAuth } from '@/context/AuthContext';
 import { useRouter, useSearchParams } from 'next/navigation';
 
-const APP_VERSION = 'v1.8.0';
+const APP_VERSION = 'v1.9.0';
 
 function LoginContent() {
   const [activeTab, setActiveTab] = useState<'login' | 'register'>('login');
