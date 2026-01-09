@@ -99,14 +99,14 @@ export function MainApp() {
     setShowComments(false);
   }
 
-  // Build Circle embed URL for a space
+  // Build Circle embed URL for a space (Space Widget)
   function getSpaceEmbedUrl(spaceSlug: string) {
-    return `https://${CIRCLE_DOMAIN}/c/${spaceSlug}?hide_community_sidebar=true`;
+    return `https://${CIRCLE_DOMAIN}/c/${spaceSlug}?iframe=true`;
   }
 
-  // Build Circle embed URL for post comments
+  // Build Circle embed URL for post comments (Post Widget)
   function getPostCommentsUrl(postSlug: string) {
-    return `https://${CIRCLE_DOMAIN}/c/${CIRCLE_SPACES.curso}/${postSlug}?hide_community_sidebar=true`;
+    return `https://${CIRCLE_DOMAIN}/c/${CIRCLE_SPACES.curso}/${postSlug}?iframe=true&post=true`;
   }
 
   // Organize posts
