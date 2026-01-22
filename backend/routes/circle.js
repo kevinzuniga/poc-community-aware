@@ -243,4 +243,59 @@ router.get('/announcements', requireCircleMember, async (req, res) => {
   }
 });
 
+/**
+ * GET /api/circle/access-groups
+ * Listar todos los access groups de la comunidad
+ */
+router.get('/access-groups', requireCircleMember, async (req, res) => {
+  try {
+    const accessGroups = await circleClient.getAccessGroups();
+    res.json({ accessGroups });
+  } catch (error) {
+    console.error('Error fetching access groups:', error);
+    res.status(500).json({ error: 'Failed to fetch access groups' });
+  }
+});
+
+/**
+ * GET /api/circle/access-groups/:accessGroupId/members
+ * Listar miembros de un access group específico
+ */
+router.get('/access-groups/:accessGroupId/members', requireCircleMember, async (req, res) => {
+  try {
+    const { accessGroupId } = req.params;
+    const members = await circleClient.getAccessGroupMembers(parseInt(accessGroupId));
+    res.json({ members });
+  } catch (error) {
+    console.error('Error fetching access group members:', error);
+    res.status(500).json({ error: 'Failed to fetch access group members' });
+  }
+});
+
+/**
+ * POST /api/circle/access-groups/:accessGroupId/members
+ * Agregar un miembro a un access group (solo admin)
+ */
+router.post('/access-groups/:accessGroupId/members', requireCircleMember, async (req, res) => {
+  try {
+    // Verificar que es admin
+    if (!req.user.email.includes('admin') && !req.user.email.includes('kevin')) {
+      return res.status(403).json({ error: 'Only admins can add members to access groups' });
+    }
+
+    const { accessGroupId } = req.params;
+    const { email } = req.body;
+
+    if (!email) {
+      return res.status(400).json({ error: 'Email is required' });
+    }
+
+    const result = await circleClient.addMemberToAccessGroup(email, parseInt(accessGroupId));
+    res.json(result);
+  } catch (error) {
+    console.error('Error adding member to access group:', error);
+    res.status(500).json({ error: 'Failed to add member to access group' });
+  }
+});
+
 module.exports = router;

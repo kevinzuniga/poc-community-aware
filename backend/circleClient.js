@@ -254,6 +254,39 @@ const getWidgetConfig = () => {
   };
 };
 
+/**
+ * Listar Access Groups de la comunidad
+ */
+const getAccessGroups = async () => {
+  const response = await circleRequest(`/access_groups?community_id=${COMMUNITY_ID}`);
+  return response.records || [];
+};
+
+/**
+ * Agregar miembro a un Access Group
+ * @param {string} email - Email del miembro
+ * @param {number} accessGroupId - ID del access group
+ */
+const addMemberToAccessGroup = async (email, accessGroupId) => {
+  const response = await circleRequest(`/access_groups/${accessGroupId}/community_members`, {
+    method: 'POST',
+    body: JSON.stringify({
+      community_id: parseInt(COMMUNITY_ID),
+      email
+    })
+  });
+  return response;
+};
+
+/**
+ * Obtener miembros de un Access Group
+ * @param {number} accessGroupId - ID del access group
+ */
+const getAccessGroupMembers = async (accessGroupId) => {
+  const response = await circleRequest(`/access_groups/${accessGroupId}/community_members?community_id=${COMMUNITY_ID}`);
+  return response.records || [];
+};
+
 module.exports = {
   createMember,
   findMemberByEmail,
@@ -266,6 +299,9 @@ module.exports = {
   createAnnouncement,
   healthCheck,
   getWidgetConfig,
+  getAccessGroups,
+  addMemberToAccessGroup,
+  getAccessGroupMembers,
   SPACE_IDS,
   getConfig: () => ({
     adminBaseUrl: ADMIN_BASE_URL,

@@ -81,6 +81,11 @@ const startServer = async () => {
 ║  GET  /api/circle/member-token - Member access token   ║
 ║  GET  /api/circle/curso/posts  - Curso posts           ║
 ║                                                        ║
+║  Access Groups:                                        ║
+║  GET  /api/circle/access-groups     - List groups      ║
+║  GET  /api/circle/access-groups/:id/members - Members  ║
+║  POST /api/circle/access-groups/:id/members - Add      ║
+║                                                        ║
 ║  GET  /health              - Server health check       ║
 ╚════════════════════════════════════════════════════════╝
       `);

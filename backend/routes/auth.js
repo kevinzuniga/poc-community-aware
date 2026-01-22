@@ -61,6 +61,18 @@ router.post('/register', async (req, res) => {
         circleMemberId = circleMember.id;
         console.log(`Created new Circle member: ${circleMemberId}`);
       }
+
+      // Agregar miembro al Access Group por defecto (LA Feb 2026)
+      const defaultAccessGroupId = process.env.CIRCLE_DEFAULT_ACCESS_GROUP_ID;
+      if (defaultAccessGroupId) {
+        try {
+          await circleClient.addMemberToAccessGroup(email, parseInt(defaultAccessGroupId));
+          console.log(`Added member ${email} to access group ${defaultAccessGroupId}`);
+        } catch (accessGroupError) {
+          console.error('Error adding member to access group:', accessGroupError.message);
+          // No falla el registro si no se puede agregar al access group
+        }
+      }
     } catch (circleError) {
       console.error('Error creating Circle member:', circleError);
       // Continuar sin Circle member ID - se puede reintentar después
