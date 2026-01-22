@@ -244,3 +244,146 @@ https://tu-comunidad.circle.so/session/cookies?access_token=TOKEN_AQUI&return_to
 5. **skip_invitation**: Evita que Circle envíe emails de invitación al crear miembros.
 
 6. **skip_onboarding**: Intenta saltar el formulario de onboarding de Circle (puede requerir configuración adicional en Circle Admin).
+
+---
+
+## Parte 3: Access Groups (Grupos de Acceso)
+
+> **Actualización: Enero 2026**
+
+Los Access Groups permiten segmentar usuarios y controlar acceso a contenido específico en Circle.
+
+### Variable de Entorno Adicional
+
+```bash
+CIRCLE_DEFAULT_ACCESS_GROUP_ID=88776  # ID del access group por defecto
+```
+
+### Access Groups Actuales en la Comunidad
+
+| ID | Nombre | Descripción |
+|----|--------|-------------|
+| **88776** | LA Feb 2026 | Participantes del Leadership Academy Feb 2026 |
+| **88775** | Default Access Group | Access group por defecto creado durante onboarding |
+
+### Listar Access Groups
+
+```typescript
+async function getAccessGroups() {
+  const response = await circleRequest(`/access_groups?community_id=${COMMUNITY_ID}`);
+  return response.records || [];
+}
+```
+
+### Agregar Miembro a un Access Group
+
+```typescript
+async function addMemberToAccessGroup(email: string, accessGroupId: number) {
+  const response = await circleRequest(`/access_groups/${accessGroupId}/community_members`, {
+    method: 'POST',
+    body: JSON.stringify({
+      community_id: parseInt(COMMUNITY_ID),
+      email
+    })
+  });
+  return response;
+}
+
+// Ejemplo de uso:
+await addMemberToAccessGroup('usuario@email.com', 88776);
+// Respuesta: { message: "Member has been added to 'LA Feb 2026' access group." }
+```
+
+### Listar Miembros de un Access Group
+
+```typescript
+async function getAccessGroupMembers(accessGroupId: number) {
+  const response = await circleRequest(
+    `/access_groups/${accessGroupId}/community_members?community_id=${COMMUNITY_ID}`
+  );
+  return response.records || [];
+}
+
+// Respuesta ejemplo:
+// [
+//   { id: 12110985, community_member_id: 75647773, access_group_id: 88776, ... },
+//   { id: 11967598, community_member_id: 75537732, access_group_id: 88776, ... }
+// ]
+```
+
+### Auto-Agregar al Access Group Durante Registro
+
+En el flujo de registro, después de crear el miembro en Circle:
+
+```typescript
+// Crear miembro en Circle
+let circleMember = await findMemberByEmail(email);
+if (!circleMember) {
+  circleMember = await createMember({ email, name });
+}
+
+// Agregar al Access Group por defecto
+const defaultAccessGroupId = process.env.CIRCLE_DEFAULT_ACCESS_GROUP_ID;
+if (defaultAccessGroupId && circleMember) {
+  try {
+    await addMemberToAccessGroup(email, parseInt(defaultAccessGroupId));
+    console.log(`Added ${email} to access group ${defaultAccessGroupId}`);
+  } catch (error) {
+    console.error('Error adding to access group:', error);
+    // No falla el registro si no se puede agregar al access group
+  }
+}
+```
+
+### Endpoints REST Disponibles
+
+| Método | Endpoint | Descripción |
+|--------|----------|-------------|
+| GET | `/api/circle/access-groups` | Listar todos los access groups |
+| GET | `/api/circle/access-groups/:id/members` | Listar miembros de un access group |
+| POST | `/api/circle/access-groups/:id/members` | Agregar miembro a un access group (admin) |
+
+### Flujo Completo con Access Groups
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│              REGISTRO CON ACCESS GROUPS                      │
+├─────────────────────────────────────────────────────────────┤
+│                                                              │
+│  Usuario hace Registro en tu App                             │
+│              ↓                                               │
+│  findMemberByEmail(email)                                    │
+│              ↓                                               │
+│         ¿Existe?                                             │
+│         /      \                                             │
+│        NO      SÍ                                            │
+│        ↓        ↓                                            │
+│  createMember()  usar member.id existente                    │
+│        ↓        ↓                                            │
+│      Obtener member.id                                       │
+│              ↓                                               │
+│  addMemberToAccessGroup(email, accessGroupId)  ← NUEVO       │
+│              ↓                                               │
+│  Guardar circle_member_id en tu DB local                     │
+│              ↓                                               │
+│  Usuario tiene acceso al contenido del Access Group          │
+│                                                              │
+└─────────────────────────────────────────────────────────────┘
+```
+
+---
+
+## Resumen de Endpoints de Circle API v2
+
+### Community Members
+- `GET /community_members?community_id=X&email=Y` - Buscar miembro
+- `POST /community_members` - Crear miembro
+- `PUT /community_members/:id` - Actualizar miembro
+
+### Access Groups
+- `GET /access_groups?community_id=X` - Listar access groups
+- `GET /access_groups/:id/community_members?community_id=X` - Listar miembros
+- `POST /access_groups/:id/community_members` - Agregar miembro (requiere `email` y `community_id`)
+
+### Headless Auth
+- `POST /api/v1/headless/auth_token` - Obtener token de sesión (usa HEADLESS_TOKEN)
